@@ -3,8 +3,4 @@ flask-cors==4.0.0
 pymongo==4.7.2
 python-dotenv==1.0.1
 dnspython==2.5.0
-# For MongoDB BSON ObjectId and Regex support
-bson==0.5.10
-# Optional: For production deployments (not needed for local dev)
-# gunicorn==22.0.0
-
+gunicorn==22.0.0
