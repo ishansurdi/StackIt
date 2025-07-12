@@ -75,7 +75,7 @@ def signup():
         "username": username,
         "email": email,
         "password": password,  # Replace with hashed password if implemented
-        "created_at": datetime.utcnow()
+        "created_at": datetime.datetime.now(datetime.timezone.utc),  # ✅ FIX: timezone-aware UTC
     }
 
     users_col.insert_one(user_data)
