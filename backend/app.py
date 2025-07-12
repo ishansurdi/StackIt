@@ -7,6 +7,9 @@ import datetime
 from bson import ObjectId
 import re
 from bson.regex import Regex
+from flask import abort
+from flask import render_template
+from flask import send_from_directory
 
 load_dotenv()
 db_password = os.getenv("DB_PASSWORD")
@@ -400,6 +403,83 @@ def get_unanswered_questions():
         "per_page": per_page,
         "total_pages": (total + per_page - 1) // per_page
     })
+
+
+
+
+@app.route("/admin")
+def admin_panel():
+    return render_template("admin.html")
+
+@app.route('/images/<path:filename>')
+def images(filename):
+    return send_from_directory('../images', filename)
+
+@app.route('/admin/users', methods=['GET'])
+def admin_users():
+    try:
+        users_data = []
+        for user in users_col.find():
+            user_questions = list(questions_col.find({"author": user["username"]}))
+            user_answers = []
+            for q in user_questions:
+                for a in q.get("answers", []):
+                    if a["author"] == user["username"]:
+                        user_answers.append({
+                            "_id": str(q["_id"]),  # we'll use this to track which question it came from
+                            "content": a["content"]
+                        })
+
+            users_data.append({
+                "_id": str(user["_id"]),
+                "username": user["username"],
+                "email": user["email"],
+                "questions": [{"_id": str(q["_id"]), "title": q["title"]} for q in user_questions],
+                "answers": user_answers
+            })
+        return jsonify(users_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/questions/<question_id>', methods=['DELETE'])
+def admin_delete_question(question_id):
+    try:
+        result = questions_col.delete_one({"_id": ObjectId(question_id)})
+        if result.deleted_count == 1:
+            return jsonify({"message": "Question deleted"}), 200
+        return jsonify({"error": "Question not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/admin/answers/<question_id>', methods=['DELETE'])
+def admin_delete_answer(question_id):
+    try:
+        data = request.get_json()
+        content = data.get("content", "").strip()
+        if not content:
+            return jsonify({"error": "Content required"}), 400
+
+        question = questions_col.find_one({"_id": ObjectId(question_id)})
+        if not question:
+            return jsonify({"error": "Question not found"}), 404
+
+        old_answers = question.get("answers", [])
+        new_answers = [a for a in old_answers if a["content"].strip() != content]
+
+        if len(old_answers) == len(new_answers):
+            return jsonify({"error": "Answer not found"}), 404
+
+        questions_col.update_one(
+            {"_id": ObjectId(question_id)},
+            {"$set": {"answers": new_answers}}
+        )
+
+        return jsonify({"message": "Answer deleted"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 
 if __name__ == "__main__":
     app.run(debug=True)

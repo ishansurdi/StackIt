@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>StackIt Admin</title>
+    <link rel="icon" type="image/png" href="/images/layers.png">
+    <link rel="stylesheet" href="../../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-white to-blue-100 min-h-screen flex flex-col">
+    <nav class="glass-header shadow-md border-b border-blue-100 sticky top-0 z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 flex items-center h-20">
+            <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 shadow">
+                <img src="/images/layers.png" alt="StackIt Logo" class="w-8 h-8 object-contain" />
+            </span>
+            <h1 class="ml-3 text-3xl font-extrabold text-blue-700 tracking-tight select-none">
+                StackIt Admin
+            </h1>
+            <a href="../../index.html" class="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
+                Back to Site
+            </a>
+        </div>
+    </nav>
+    <main class="flex-1 max-w-5xl mx-auto px-4 py-12 w-full fade-in">
+        <div class="bg-white rounded-lg shadow-lg p-8 border border-blue-100">
+            <h2 class="text-2xl font-bold text-blue-800 mb-6">Admin Dashboard</h2>
+            <div id="adminStats" class="mb-8 flex flex-wrap gap-8">
+                <div class="bg-blue-50 rounded-lg p-6 flex-1 min-w-[200px] text-center shadow">
+                    <div class="text-4xl font-bold text-blue-700" id="userCount">0</div>
+                    <div class="text-gray-600 mt-2">Total Users</div>
+                </div>
+            </div>
+            <h3 class="text-xl font-semibold text-blue-700 mb-4">Users & Activity</h3>
+            <div id="usersList" class="overflow-x-auto"></div>
+        </div>
+    </main>
+    <footer class="bg-gradient-to-r from-blue-50 via-white to-blue-100 border-t border-gray-200 mt-8 py-8 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between">
+            <div class="flex items-center space-x-3 text-gray-700 text-base">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 shadow">
+                    <i class="fas fa-code text-blue-600 text-xl"></i>
+                </span>
+                <span class="ml-2">
+                    Made By
+                    <a href="https://github.com/ishansurdi" target="_blank" rel="noopener"
+                       class="font-bold text-blue-700 hover:underline hover:text-blue-900 transition-colors duration-200">
+                        Ishan Surdi
+                    </a>
+                </span>
+            </div>
+            <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 space-x-0 md:space-x-2 mt-4 md:mt-0">
+                <span class="text-xs text-gray-400">&copy; 2025 StackIt. All rights reserved.</span>
+                <span class="hidden md:inline-block text-gray-300">|</span>
+                <a href="https://github.com/ishansurdi/StackIt" target="_blank" rel="noopener"
+                   class="text-xs text-blue-500 hover:text-blue-700 transition-colors duration-200 flex items-center gap-1">
+                    <i class="fab fa-github"></i> View on GitHub
+                </a>
+                <span class="hidden md:inline-block text-gray-300">|</span>
+                <a href="https://www.flaticon.com/free-icons/graphic-design" target="_blank" rel="noopener"
+                   class="text-xs text-gray-400 hover:text-blue-600 transition-colors duration-200 flex items-center gap-1 mt-1 md:mt-0">
+                    Graphic design icons by Freepik - Flaticon
+                </a>
+            </div>
+        </div>
+    </footer>
+    <script>
+    async function fetchAdminData() {
+        const usersRes = await fetch('/admin/users');
+        const users = await usersRes.json();
+        document.getElementById('userCount').textContent = users.length;
+        const usersList = document.getElementById('usersList');
+        usersList.innerHTML = users.map(user => `
+            <div class="mb-8 border-b pb-6">
+                <div class="flex items-center gap-4 mb-2">
+                    <span class="font-bold text-blue-700">${user.username}</span>
+                    <span class="text-xs text-gray-500">${user.email}</span>
+                    <span class="text-xs text-gray-400">ID: ${user._id}</span>
+                </div>
+                <div class="ml-4">
+                    <div class="mb-2 font-semibold text-gray-700">Questions:</div>
+                    <ul class="mb-2">
+                        ${user.questions.map(q => `
+                            <li class="flex items-center justify-between bg-blue-50 rounded px-3 py-2 mb-1">
+                                <span>${q.title}</span>
+                                <button onclick="removeQuestion('${q._id}')" class="text-xs text-red-600 hover:underline">Remove</button>
+                            </li>
+                        `).join('')}
+                    </ul>
+                    <div class="mb-2 font-semibold text-gray-700">Answers:</div>
+                    <ul>
+                        ${user.answers.map(a => `
+                            <li class="flex items-center justify-between bg-green-50 rounded px-3 py-2 mb-1">
+                                <span>${a.content.slice(0, 60)}${a.content.length > 60 ? '...' : ''}</span>
+                                <button onclick="removeAnswer('${a._id}', \`${a.content.replace(/`/g, '\\`')}\`)" class="text-xs text-red-600 hover:underline">Remove</button>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            </div>
+        `).join('');
+    }
+    async function removeQuestion(qid) {
+        if (!confirm('Are you sure you want to remove this question?')) return;
+        await fetch(`/admin/questions/${qid}`, { method: 'DELETE' });
+        fetchAdminData();
+    }
+    async function removeAnswer(qid, content) {
+        if (!confirm('Are you sure you want to remove this answer?')) return;
+        await fetch(`/admin/answers/${qid}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        fetchAdminData();
+    }
+    fetchAdminData();
+    </script>
+</body>
+</html>
