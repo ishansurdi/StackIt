@@ -6,6 +6,7 @@ import os
 import datetime
 from bson import ObjectId
 import re
+from bson.regex import Regex
 
 load_dotenv()
 db_password = os.getenv("DB_PASSWORD")
@@ -36,28 +37,47 @@ def extract_mentions(text):
         return []
     return [match[1:] for match in re.findall(r'@\w+', text)]
 
+def contains_offensive_content(text):
+    if not text:
+        return False
+
+    # Example word list — extend as needed
+    offensive_words = [
+        "fuck", "shit", "bitch", "asshole", "bastard", "nigger", "slut", "dick", "cunt", "pussy"
+    ]
+
+    lower_text = text.lower()
+    return any(word in lower_text for word in offensive_words)
+
 @app.route("/signup", methods=["POST"])
 def signup():
     data = request.get_json()
-    username = data.get("username")
-    email = data.get("email")
-    password = data.get("password")
+    username = data.get("username", "").strip()
+    email = data.get("email", "").strip()
+    password = data.get("password", "").strip()
 
     if not username or not email or not password:
-        return jsonify({"error": "Missing fields"}), 400
+        return jsonify({"error": "All fields are required"}), 400
 
-    # Check if user already exists
-    if users_col.find_one({"$or": [{"username": username}, {"email": email}]}):
-        return jsonify({"error": "User already exists"}), 409
+    # ✅ Check if username already exists
+    if users_col.find_one({"username": username}):
+        return jsonify({"error": "Username already exists"}), 409
 
-    # Insert user
-    users_col.insert_one({
+    # ✅ Check if email already exists
+    if users_col.find_one({"email": email}):
+        return jsonify({"error": "Email already registered"}), 409
+
+    # You can hash the password here if needed (recommended)
+    user_data = {
         "username": username,
         "email": email,
-        "password": password  # NOTE: hash in real app!
-    })
+        "password": password,  # Replace with hashed password if implemented
+        "created_at": datetime.utcnow()
+    }
 
-    return jsonify({"message": "Signup successful"}), 201
+    users_col.insert_one(user_data)
+    return jsonify({"message": "Signup successful!", "username": username}), 201
+
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -89,6 +109,13 @@ def ask_question():
         "views": 0,
         "hasAcceptedAnswer": False
     }
+    data = request.get_json()
+    title = data.get("title", "").strip()
+    description = data.get("description", "").strip()
+    tags = data.get("tags", [])
+    author = data.get("author", "")
+    if contains_offensive_content(title) or contains_offensive_content(description):
+        return jsonify({"error": "Your content contains offensive or restricted words."}), 400
     questions_col.insert_one(question)
     return jsonify({"message": "Question posted successfully"}), 201
 
@@ -135,6 +162,12 @@ def add_answer(id):
             "downvotes": 0,
             "accepted": False
         }
+        data = request.get_json()
+        content = data.get("content", "").strip()
+        author = data.get("author", "").strip()
+
+        if contains_offensive_content(content):
+            return jsonify({"error": "Your answer contains offensive or restricted words."}), 400
 
         result = questions_col.update_one(
             {"_id": ObjectId(id)},
@@ -285,7 +318,7 @@ def get_questions_paginated(page):
     questions = []
     for q in cursor:
         q["_id"] = str(q["_id"])
-        q["upvotes"] = q.get("upvotes", 0)
+        q["upvotes"] = q.get("votes", 0)
         questions.append(q)
 
     return jsonify({
@@ -296,6 +329,77 @@ def get_questions_paginated(page):
         "total_pages": (total + per_page - 1) // per_page
     }), 200
 
+@app.route('/questions/search', methods=['GET'])
+def search_questions():
+    query = request.args.get('q', '').strip()
+    page = int(request.args.get('page', 1))
+    per_page = 5
+    skip = (page - 1) * per_page
+
+    if not query:
+        return jsonify({
+            "questions": [],
+            "total": 0,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": 0
+        })
+
+    regex = Regex(f".*{query}.*", "i")  # Case-insensitive search
+    search_filter = {
+        "$or": [
+            {"title": regex},
+            {"description": regex}
+        ]
+    }
+
+    total = questions_col.count_documents(search_filter)
+    cursor = questions_col.find(search_filter).sort("timestamp", -1).skip(skip).limit(per_page)
+
+    questions = []
+    for q in cursor:
+        q["_id"] = str(q["_id"])
+        q["upvotes"] = q.get("upvotes", 0)
+        questions.append(q)
+
+    return jsonify({
+        "questions": questions,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page
+    })
+
+@app.route('/questions/unanswered', methods=['GET'])
+def get_unanswered_questions():
+    page = int(request.args.get('page', 1))
+    per_page = 5
+    skip = (page - 1) * per_page
+
+    filter_query = {
+        "$or": [
+            {"answers": {"$exists": False}},
+            {"answers": {"$size": 0}}
+        ]
+    }
+
+    total = questions_col.count_documents(filter_query)
+
+    cursor = questions_col.find(filter_query).sort("timestamp", -1).skip(skip).limit(per_page)
+
+    questions = []
+    for q in cursor:
+        q["_id"] = str(q["_id"])
+        q["upvotes"] = q.get("upvotes", 0)
+        questions.append(q)
+
+    return jsonify({
+        "questions": questions,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)

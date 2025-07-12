@@ -37,14 +37,25 @@
             }
         }
 
-.rendered-content img {
-        max-width: 100%;
-        max-height: 400px;
-        height: auto;
-        width: auto;
-        object-fit: contain;
-        border-radius: 6px;
-        display: block;
-        margin-top: 8px;
-        margin-bottom: 8px;
-    }
+/* Notification Toast Styles */
+#notificationToast {
+    min-width: 250px;
+    max-width: 350px;
+    transition: opacity 0.3s, transform 0.3s;
+    opacity: 0;
+    pointer-events: none;
+}
+#notificationToast.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+#notificationToast.success #notificationToastContent {
+    background-color: #16a34a; /* green-600 */
+}
+#notificationToast.error #notificationToastContent {
+    background-color: #dc2626; /* red-600 */
+}
+#notificationToast.info #notificationToastContent {
+    background-color: #2563eb; /* blue-600 */
+}

@@ -31,7 +31,7 @@ async function fetchQuestionsPaginated(page = 1, sort = null) {
     }
 }
 
-function renderPagination(currentPage, totalPages) {
+function renderPagination(currentPage, totalPages, onPageClick = renderQuestions) {
     const pageContainer = document.getElementById("pageNumbers");
     const prevBtn = document.getElementById("prevBtn");
     const nextBtn = document.getElementById("nextBtn");
@@ -40,41 +40,29 @@ function renderPagination(currentPage, totalPages) {
 
     const pagesToShow = [];
 
-    // Always show first 3 pages
-    for (let i = 1; i <= Math.min(3, totalPages); i++) {
+    for (let i = 1; i <= totalPages; i++) {
         pagesToShow.push(i);
     }
 
-    // Add ellipsis if there are skipped pages
-    if (totalPages > 4 && currentPage > 4) {
-        pageContainer.innerHTML += `<span class="px-2">...</span>`;
-    }
-
-    // Always show last page if not already shown
-    if (!pagesToShow.includes(totalPages)) {
-        pagesToShow.push(totalPages);
-    }
-
-    // Render buttons
     pagesToShow.forEach(page => {
         const btn = document.createElement("button");
         btn.textContent = page;
         btn.className = `px-3 py-1 text-sm rounded ${page === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}`;
-        btn.onclick = () => renderQuestions(page);
+        btn.onclick = () => onPageClick(page);
         pageContainer.appendChild(btn);
     });
 
-    // Prev/Next enable/disable
     prevBtn.disabled = currentPage === 1;
     nextBtn.disabled = currentPage === totalPages;
 
     prevBtn.onclick = () => {
-        if (currentPage > 1) renderQuestions(currentPage - 1);
+        if (currentPage > 1) onPageClick(currentPage - 1);
     };
     nextBtn.onclick = () => {
-        if (currentPage < totalPages) renderQuestions(currentPage + 1);
+        if (currentPage < totalPages) onPageClick(currentPage + 1);
     };
 }
+
 async function fetchQuestionsPaginated(page = 1, sort = null) {
     try {
         let url = `http://localhost:5000/questions/page/${page}`;
@@ -159,7 +147,7 @@ function renderQuestionsList(questions) {
         div.innerHTML = `
             <div class="flex justify-between items-center">
                 <h3 class="text-lg font-semibold text-blue-700 cursor-pointer" onclick="showQuestion('${id}')">${q.title}</h3>
-                <span class="text-xs text-gray-500">${q.upvotes || 0} Upvotes</span>
+                
             </div>
             <div class="text-sm text-gray-600 mt-2 rendered-content">${q.description}</div>
             <div class="flex gap-2 mt-2">
@@ -169,6 +157,7 @@ function renderQuestionsList(questions) {
         questionList.appendChild(div);
     });
 }
+{/* <span class="text-xs text-gray-500">${q.votes || 0} Upvotes</span> */}
 
 async function renderQuestions(page = 1, sort = null) {
     const data = await fetchQuestionsPaginated(page, sort);
@@ -402,7 +391,7 @@ async function showQuestion(id) {
 
     } catch (err) {
         console.error("Error loading question:", err);
-        alert("Failed to load the question.");
+        showNotification("Failed to load the question.");
     }
 }
 
@@ -410,7 +399,7 @@ async function showQuestion(id) {
 function toggleTagSelection(tag) {
     if (selectedTags.includes(tag)) return;
     if (selectedTags.length >= 5) {
-        alert("You can select up to 5 tags only.");
+        showNotification("You can select up to 5 tags only.");
         return;
     }
     selectedTags.push(tag);
@@ -556,7 +545,7 @@ function voteAnswer(index, type) {
     const questionId = currentQuestionId;
 
     if (!currentUser) {
-        alert("You must be logged in to vote.");
+        showNotification("You must be logged in to vote.");
         return;
     }
 
@@ -571,7 +560,7 @@ function voteAnswer(index, type) {
             // Refresh the question screen to reflect updated vote counts
             showQuestion(questionId);
         } else {
-            alert("Vote failed: " + data.error);
+            showNotification("Vote failed: " + data.error);
         }
     })
     .catch(err => console.error("Vote error", err));
@@ -579,7 +568,7 @@ function voteAnswer(index, type) {
 
 function acceptAnswer(index) {
     if (!currentUser || currentUser !== window.questionAuthor) {
-        alert("Only the question author can accept an answer.");
+        showNotification("Only the question author can accept an answer.");
         return;
     }
 
@@ -593,16 +582,16 @@ function acceptAnswer(index) {
     .then(res => res.json())
     .then(data => {
         if (data.message) {
-            alert(data.message);
+            showNotification(data.message);
             window.hasAcceptedAnswer = true; // ✅ update global state
             showQuestion(currentQuestionId); // ✅ refresh question view
         } else {
-            alert("Failed: " + data.error);
+            showNotification("Failed: " + data.error);
         }
     })
     .catch(err => {
         console.error("Accept error:", err);
-        alert("Something went wrong.");
+        showNotification("Something went wrong.");
     });
 }
 
@@ -661,7 +650,7 @@ document.getElementById('loginForm').addEventListener('submit', async function (
     const password = document.getElementById('password').value.trim();
 
     if (!username || !password) {
-        alert("Please enter both username and password.");
+        showNotification("Please enter both username and password.");
         return;
     }
 
@@ -682,13 +671,13 @@ document.getElementById('loginForm').addEventListener('submit', async function (
             closeLoginModal();
             updateLoginStatusUI();
             fetchNotifications(); // 🔔 Load immediately after login
-            alert("Login successful!");
+            showNotification("Login successful!");
         } else {
-            alert(result.error || "Login failed.");
+            showNotification(result.error || "Login failed.");
         }
     } catch (error) {
         console.error("Login error:", error);
-        alert("Something went wrong. Please try again later.");
+        showNotification("Something went wrong. Please try again later.");
     }
 });
 
@@ -700,7 +689,7 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
     const password = document.getElementById("signupPassword").value.trim();
 
     if (!username || !email || !password) {
-        alert("Please fill all the fields.");
+        showNotification("Please fill all the fields.");
         return;
     }
 
@@ -716,14 +705,14 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
         const result = await res.json();
 
         if (res.ok) {
-            alert("Signup successful! You can now log in.");
+            showNotification("Signup successful! You can now log in.");
             document.getElementById("signupModal").classList.add("hidden");
         } else {
-            alert(result.error || "Signup failed.");
+            showNotification(result.error || "Signup failed.");
         }
     } catch (err) {
         console.error("Signup error:", err);
-        alert("Something went wrong during signup.");
+        showNotification("Something went wrong during signup.");
     }
 });
 
@@ -734,9 +723,14 @@ document.getElementById("askQuestionForm").addEventListener("submit", async func
     const description = document.getElementById("richTextEditor").innerHTML.trim();
 
     if (!title || !description || selectedTags.length === 0) {
-        alert("Please fill all fields and select at least one tag.");
-        return;
-    }
+    showNotification("Please fill all fields and select at least one tag.");
+    return;
+}
+
+if (containsBadWords(title) || containsBadWords(description)) {
+    showNotification("🚫 Your question contains inappropriate or offensive content.", "error");
+    return;
+}
 
     const questionData = {
         title,
@@ -754,14 +748,14 @@ document.getElementById("askQuestionForm").addEventListener("submit", async func
 
         const result = await res.json();
         if (res.ok) {
-            alert("Question posted successfully!");
+            showNotification("Question posted successfully!");
             showScreen("home");
         } else {
-            alert(result.error || "Failed to post question.");
+            showNotification(result.error || "Failed to post question.");
         }
     } catch (err) {
         console.error("Post question error:", err);
-        alert("Something went wrong.");
+        showNotification("Something went wrong.");
     }
 });
 
@@ -771,9 +765,14 @@ document.getElementById("answerForm").addEventListener("submit", async function 
     const content = document.getElementById("answerEditor").innerHTML.trim();
 
     if (!content || !currentUser || !currentQuestionId) {
-        alert("Answer cannot be empty or user not logged in.");
-        return;
-    }
+    showNotification("Answer cannot be empty or user not logged in.");
+    return;
+}
+
+if (containsBadWords(content)) {
+    showNotification("🚫 Your answer contains offensive language and cannot be submitted.", "error");
+    return;
+}
 
     const answerData = {
         author: currentUser,
@@ -791,17 +790,39 @@ document.getElementById("answerForm").addEventListener("submit", async function 
 
         const result = await res.json();
         if (res.ok) {
-            alert("Answer posted!");
+            showNotification("Answer posted!");
             // Refresh question to show updated answers
             showQuestion(currentQuestionId);
         } else {
-            alert(result.error || "Failed to post answer.");
+            showNotification(result.error || "Failed to post answer.");
         }
     } catch (err) {
         console.error("Answer post error:", err);
-        alert("Something went wrong.");
+        showNotification("Something went wrong.");
     }
 });
+
+// =================== SEARCH LOGIC ===================
+async function handleSearch(page = 1) {
+    const query = document.getElementById("searchInput").value.trim();
+    if (!query) {
+        // If empty, reset to default view
+        renderQuestions(1);
+        return;
+    }
+
+    try {
+        const res = await fetch(`http://localhost:5000/questions/search?q=${encodeURIComponent(query)}&page=${page}`);
+        const data = await res.json();
+        lastSortedQuestions = [...data.questions]; // update state
+
+        renderQuestionsList(data.questions);
+        renderPagination(data.page, data.total_pages);
+    } catch (err) {
+        console.error("Search failed", err);
+        showNotification("Failed to search questions.");
+    }
+}
 
 
 
@@ -812,4 +833,76 @@ function handleAskClick() {
         return;
     }
     showScreen('ask');
+}
+
+document.getElementById("searchInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        handleSearch();
+    }
+});
+
+
+async function filterQuestions(type, page = 1) {
+    if (type === 'unanswered') {
+        try {
+            const res = await fetch(`http://localhost:5000/questions/unanswered?page=${page}`);
+            const data = await res.json();
+            lastSortedQuestions = [...data.questions]; // Update state
+
+            renderQuestionsList(data.questions);
+           renderPagination(data.page, data.total_pages, (p) => filterQuestions('unanswered', p));
+
+
+            // Reset sort UI state
+            currentSort = null;
+            document.querySelectorAll('.sort-button').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-black');
+            });
+
+        } catch (err) {
+            console.error("Failed to fetch unanswered questions", err);
+            showNotification("Could not load unanswered questions.");
+        }
+    }
+}
+
+// Show a professional notification
+function showNotification(message, type = "error", duration = 3500) {
+    const toast = document.getElementById("notificationToast");
+    const content = document.getElementById("notificationToastContent");
+
+    // Set icon and background color based on type
+    let icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+    let bgClass = "bg-red-600";
+    if (type === "success") {
+        icon = '<i class="fa-solid fa-circle-check"></i>';
+        bgClass = "bg-green-600";
+    } else if (type === "info") {
+        icon = '<i class="fa-solid fa-circle-info"></i>';
+        bgClass = "bg-blue-600";
+    }
+
+    toast.className = `fixed top-6 right-6 z-50 show`;
+    content.className = `px-6 py-4 rounded shadow-lg text-white flex items-center gap-3 ${bgClass}`;
+    content.innerHTML = `${icon} <span>${message}</span>`;
+    toast.style.opacity = "1";
+    toast.style.pointerEvents = "auto";
+    toast.classList.remove("hidden");
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.pointerEvents = "none";
+        toast.classList.add("hidden");
+    }, duration);
+}
+
+
+function containsBadWords(text) {
+    const badWords = [
+        "fuck", "shit", "bitch", "asshole", "bastard", "nigger", "slut", "dick", "cunt", "pussy"
+        
+    ];
+    const normalized = text.toLowerCase().replace(/[^a-z]/g, ""); // remove punctuation and spaces
+
+    return badWords.some(word => normalized.includes(word));
 }
