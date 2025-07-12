@@ -413,6 +413,14 @@ def get_unanswered_questions():
         "total_pages": (total + per_page - 1) // per_page
     })
 
+@app.route("/users", methods=["GET"])
+def get_usernames():
+    try:
+        users = list(users_col.find({}, {"_id": 0, "username": 1}))
+        usernames = [user["username"] for user in users]
+        return jsonify(usernames), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
