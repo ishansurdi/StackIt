@@ -10,6 +10,7 @@ let selectedTags = [];
 let allUsernames = [];
 let currentSort = null; // 'newest' | 'mostVoted' | etc.
 let lastSortedQuestions = []; // stores backend-fetched raw data
+const API_BASE = window.location.origin;
 
 // Predefined list of available tags
 const availableTags = [
@@ -21,7 +22,7 @@ const availableTags = [
 // =================== PAGINATION ===================
 async function fetchQuestionsPaginated(page = 1, sort = null) {
     try {
-        let url = `http://localhost:5000/questions/page/${page}`;
+        let url = `${API_BASE}/questions/page/${page}`;
         if (sort) url += `?sort=${sort}`;
         const res = await fetch(url);
         return await res.json();
@@ -65,7 +66,7 @@ function renderPagination(currentPage, totalPages, onPageClick = renderQuestions
 
 async function fetchQuestionsPaginated(page = 1, sort = null) {
     try {
-        let url = `http://localhost:5000/questions/page/${page}`;
+        let url = `${API_BASE}/questions/page/${page}`;
         if (sort) {
             url += `?sort=${sort}`;
         }
