@@ -8,93 +8,51 @@ let currentUser = null;
 let currentQuestionId = null;
 let selectedTags = [];
 
-// Sample Questions
-const sampleQuestions = [
-    {
-        id: 1,
-        title: "How to implement authentication in React?",
-        description: "I'm building a React application and need to implement user authentication. What's the best approach for handling login/logout and protecting routes?",
-        tags: ["react", "authentication", "javascript"],
-        author: "john_doe",
-        timestamp: "2024-01-15T10:30:00Z",
-        votes: 15,
-        answers: 3,
-        views: 127,
-        hasAcceptedAnswer: true
-    },
-    {
-        id: 2,
-        title: "Python list comprehension vs regular loops",
-        description: "When should I use list comprehensions over regular for loops in Python? Are there performance differences?",
-        tags: ["python", "performance", "list-comprehension"],
-        author: "python_guru",
-        timestamp: "2024-01-14T15:45:00Z",
-        votes: 8,
-        answers: 2,
-        views: 89,
-        hasAcceptedAnswer: false
-    },
-    {
-        id: 3,
-        title: "CSS Grid vs Flexbox - when to use which?",
-        description: "I'm confused about when to use CSS Grid vs Flexbox. Can someone explain the key differences and use cases?",
-        tags: ["css", "grid", "flexbox", "layout"],
-        author: "css_newbie",
-        timestamp: "2024-01-13T09:20:00Z",
-        votes: 12,
-        answers: 5,
-        views: 203,
-        hasAcceptedAnswer: true
-    },
-    {
-        id: 4,
-        title: "Database normalization best practices",
-        description: "What are the key principles of database normalization? How do I know when I've normalized enough?",
-        tags: ["database", "sql", "normalization"],
-        author: "db_admin",
-        timestamp: "2024-01-12T14:10:00Z",
-        votes: 6,
-        answers: 1,
-        views: 64,
-        hasAcceptedAnswer: false
-    },
-    {
-        id: 5,
-        title: "Understanding async/await in JavaScript",
-        description: "I'm having trouble understanding how async/await works in JavaScript. Can someone explain with examples?",
-        tags: ["javascript", "async", "promises"],
-        author: "js_learner",
-        timestamp: "2024-01-11T11:55:00Z",
-        votes: 20,
-        answers: 4,
-        views: 156,
-        hasAcceptedAnswer: true
-    },
-    {
-        id: 6,
-        title: "Best practices for API design",
-        description: "What are the essential principles for designing RESTful APIs? Looking for guidance on URL structure, HTTP methods, and error handling.",
-        tags: ["api", "rest", "design", "backend"],
-        author: "api_architect",
-        timestamp: "2024-01-10T16:30:00Z",
-        votes: 11,
-        answers: 0,
-        views: 45,
-        hasAcceptedAnswer: false
-    },
+// Predefined list of available tags
+const availableTags = [
+    "javascript", "react", "html", "css", "python", "sql",
+    "database", "api", "async", "promises", "authentication",
+    "performance", "flexbox", "grid", "layout", "design", "rest"
 ];
 
-// Render Questions
-function renderQuestions() {
+// Helper: Format Timestamp
+function formatDate(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+    });
+}
+
+// Fetch All Questions from Backend
+async function fetchQuestions() {
+    try {
+        const res = await fetch("http://localhost:5000/questions");
+        return await res.json();
+    } catch (err) {
+        console.error("Failed to fetch questions", err);
+        return [];
+    }
+}
+
+// Render Questions on Home Screen
+function renderQuestionsList(questions) {
     const questionList = document.getElementById('questionList');
     questionList.innerHTML = '';
-    sampleQuestions.forEach(q => {
+
+    questions.forEach(q => {
+        const id = q._id || q.id;
         const div = document.createElement('div');
         div.className = 'bg-white p-4 rounded-lg shadow border border-gray-200';
         div.innerHTML = `
             <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-blue-700 cursor-pointer" onclick="showQuestion(${q.id})">${q.title}</h3>
-                <span class="text-xs text-gray-500">${q.votes} votes</span>
+                <h3 class="text-lg font-semibold text-blue-700 cursor-pointer" onclick="showQuestion('${id}')">${q.title}</h3>
+                <span class="text-xs text-gray-500">${q.votes || 0} votes</span>
             </div>
             <div class="text-sm text-gray-600 mt-2">${q.description}</div>
             <div class="flex gap-2 mt-2">
@@ -105,8 +63,13 @@ function renderQuestions() {
     });
 }
 
+async function renderQuestions() {
+    const questions = await fetchQuestions();
+    renderQuestionsList(questions);
+}
+
 // Show Screens with Login Restriction
-function showScreen(screen) {
+async function showScreen(screen) {
     if (!isLoggedIn && (screen === 'ask' || screen === 'question')) {
         toggleLogin();
         return;
@@ -123,17 +86,9 @@ function showScreen(screen) {
     }
 }
 
-// Handle Click on Ask Question
-function handleAskClick() {
-    if (!isLoggedIn) {
-        toggleLogin();
-    } else {
-        showScreen('ask');
-    }
-}
-
-// Show Question Details with Login Check
-function showQuestion(id) {
+// Show Question Details with ID and Title in Answer Header
+async function showQuestion(id) {
+    // If user not logged in, show login modal
     if (!isLoggedIn) {
         toggleLogin();
         return;
@@ -141,20 +96,120 @@ function showQuestion(id) {
 
     currentQuestionId = id;
     showScreen('question');
-    document.getElementById('questionDetails').innerHTML = `<div>Question ID: ${id}</div>`;
+
+    try {
+        const res = await fetch(`http://localhost:5000/question/${id}`);
+        if (!res.ok) throw new Error("Failed to fetch question");
+        const data = await res.json();
+
+        const formattedTime = new Date(data.timestamp).toLocaleString("en-IN", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        });
+
+        // Populate Question Details
+        document.getElementById("questionDetails").innerHTML = `
+            <h2 class="text-2xl font-bold text-blue-800 mb-2">${data.title}</h2>
+            <div class="text-sm text-gray-600 mb-3">
+                Asked by <span class="font-medium text-gray-800">${data.author}</span>
+                on <span class="italic">${formattedTime}</span>
+            </div>
+            <div class="text-gray-800 mb-4">${data.description}</div>
+            <div class="flex flex-wrap gap-2 mb-4">
+                ${data.tags.map(tag => `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">${tag}</span>`).join('')}
+            </div>
+        `;
+
+        // Clear previous answers and editor content
+        const answersList = document.getElementById("answersList");
+        answersList.innerHTML = "";
+        document.getElementById("answerEditor").innerHTML = "";
+
+        // Render Answers if available
+        if (data.answers && data.answers.length > 0) {
+            data.answers.forEach(ans => {
+                const ansDiv = document.createElement("div");
+                ansDiv.className = "border p-4 rounded shadow-sm bg-gray-50";
+                const ansTime = new Date(ans.timestamp).toLocaleString("en-IN");
+
+                ansDiv.innerHTML = `
+                    <div class="text-gray-800">${ans.content}</div>
+                    <div class="text-xs text-gray-500 mt-2">
+                        Answered by <strong>${ans.author}</strong> on ${ansTime}
+                    </div>
+                `;
+
+                answersList.appendChild(ansDiv);
+            });
+        } else {
+            answersList.innerHTML = `<div class="text-gray-400">No answers yet. Be the first to answer!</div>`;
+        }
+
+    } catch (err) {
+        console.error("Error loading question:", err);
+        alert("Failed to load the question.");
+    }
 }
 
-// Toggle Login Modal
+
+// Ask Question Submission
+document.getElementById("askQuestionForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const title = document.getElementById("questionTitle").value.trim();
+    const description = document.getElementById("richTextEditor").innerHTML.trim();
+
+    if (!title || !description || selectedTags.length === 0) {
+        alert("Please fill all fields and select at least one tag.");
+        return;
+    }
+
+    const questionData = {
+        title,
+        description,
+        tags: selectedTags,
+        author: currentUser
+    };
+
+    try {
+        const res = await fetch("http://localhost:5000/ask-question", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(questionData)
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+            alert("Question posted successfully!");
+            showScreen("home");
+        } else {
+            alert(result.error || "Failed to post question.");
+        }
+    } catch (err) {
+        console.error("Post question error:", err);
+        alert("Something went wrong.");
+    }
+});
+
+// Authentication & UI Update Functions (unchanged)
 function toggleLogin() {
     document.getElementById('loginModal').classList.toggle('hidden');
 }
-
-// Close Login Modal
 function closeLoginModal() {
     document.getElementById('loginModal').classList.add('hidden');
 }
-
-// Update Login UI
+function toggleSignup() {
+    document.getElementById("loginModal").classList.add("hidden");
+    document.getElementById("signupModal").classList.remove("hidden");
+}
+function closeSignupModal() {
+    document.getElementById("signupModal").classList.add("hidden");
+}
 function updateLoginStatusUI() {
     const loginBtn = document.getElementById('loginBtn');
     if (isLoggedIn) {
@@ -164,68 +219,112 @@ function updateLoginStatusUI() {
     }
 }
 
-// Login Form Handling
-document.getElementById('loginForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
+// Rich Text Editor Functions (unchanged)
+function formatText(command) { document.execCommand(command, false, null); }
+function insertLink() {
+    const url = prompt("Enter the URL");
+    if (url) document.execCommand("createLink", false, url);
+}
+function insertEmoji(emoji) {
+    const editor = document.getElementById("richTextEditor");
+    editor.focus();
+    document.execCommand("insertText", false, emoji);
+    toggleEmojiPicker();
+}
+function toggleEmojiPicker() {
+    const picker = document.getElementById("emojiPicker");
+    picker.classList.toggle("hidden");
+}
+function insertImage(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const editor = document.getElementById("richTextEditor");
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            img.classList.add("max-w-full", "rounded", "my-2");
+            editor.appendChild(img);
 
-    if (username && password) {
-        isLoggedIn = true;
-        currentUser = username;
-        closeLoginModal();
-        updateLoginStatusUI();
-        alert(`Welcome, ${username}!`);
-    } else {
-        alert("Please enter valid login credentials.");
+            document.getElementById("imagePreview").classList.remove("hidden");
+            document.getElementById("previewImg").src = e.target.result;
+        };
+        reader.readAsDataURL(file);
     }
+}
+
+// Tag Selection + Suggestion
+function renderAvailableTags() {
+    const tagContainer = document.getElementById("tagSelection");
+    tagContainer.innerHTML = "";
+    availableTags.forEach(tag => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tag-button px-2 py-1 bg-gray-100 rounded text-sm hover:bg-blue-200";
+        btn.textContent = tag;
+        btn.onclick = () => toggleTagSelection(tag);
+        tagContainer.appendChild(btn);
+    });
+}
+function toggleTagSelection(tag) {
+    if (selectedTags.includes(tag)) return;
+    if (selectedTags.length >= 5) {
+        alert("You can select up to 5 tags only.");
+        return;
+    }
+    selectedTags.push(tag);
+    updateSelectedTagsUI();
+}
+function updateSelectedTagsUI() {
+    const selectedContainer = document.getElementById("selectedTags");
+    selectedContainer.innerHTML = "";
+    selectedTags.forEach(tag => {
+        const span = document.createElement("span");
+        span.className = "bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs";
+        span.textContent = tag;
+        selectedContainer.appendChild(span);
+    });
+}
+function suggestTagsFromDescription(text) {
+    const lowerText = text.toLowerCase();
+    selectedTags = [];
+    availableTags.forEach(tag => {
+        if (lowerText.includes(tag)) selectedTags.push(tag);
+    });
+    updateSelectedTagsUI();
+}
+document.getElementById("richTextEditor").addEventListener("input", () => {
+    const desc = document.getElementById("richTextEditor").innerText;
+    suggestTagsFromDescription(desc);
 });
 
-// Initial Render
+// Answer Editor Toolbar
+function formatAnswerText(command) {
+    document.getElementById('answerEditor').focus();
+    document.execCommand(command, false, null);
+}
+function insertAnswerLink() {
+    const url = prompt("Enter the URL");
+    if (url) {
+        document.getElementById('answerEditor').focus();
+        document.execCommand("createLink", false, url);
+    }
+}
+function toggleAnswerEmojiPicker() {
+    const picker = document.getElementById("answerEmojiPicker");
+    picker.classList.toggle("hidden");
+}
+function insertAnswerEmoji(emoji) {
+    const editor = document.getElementById("answerEditor");
+    editor.focus();
+    document.execCommand("insertText", false, emoji);
+    toggleAnswerEmojiPicker();
+}
+
+// On Page Load
 document.addEventListener('DOMContentLoaded', () => {
+    renderAvailableTags();
     showScreen('home');
-});
-
-
-function toggleSignup() {
-    document.getElementById("loginModal").classList.add("hidden");
-    document.getElementById("signupModal").classList.remove("hidden");
-}
-
-function closeSignupModal() {
-    document.getElementById("signupModal").classList.add("hidden");
-}
-
-
-
-document.getElementById("signupForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    
-    const username = document.getElementById("signupUsername").value;
-    const email = document.getElementById("signupEmail").value;
-    const password = document.getElementById("signupPassword").value;
-
-    try {
-        const res = await fetch("http://localhost:5000/signup", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ username, email, password })
-        });
-
-        const result = await res.json();
-
-        if (res.ok) {
-            alert("Signup successful! You can now log in.");
-            closeSignupModal();
-        } else {
-            alert(result.error || "Signup failed");
-        }
-    } catch (err) {
-        console.error("Signup error:", err);
-        alert("Something went wrong.");
-    }
 });
 
 document.getElementById('loginForm').addEventListener('submit', async function (e) {
@@ -263,4 +362,86 @@ document.getElementById('loginForm').addEventListener('submit', async function (
         alert("Something went wrong. Please try again later.");
     }
 });
+
+document.getElementById("signupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById("signupUsername").value.trim();
+    const email = document.getElementById("signupEmail").value.trim();
+    const password = document.getElementById("signupPassword").value.trim();
+
+    if (!username || !email || !password) {
+        alert("Please fill all the fields.");
+        return;
+    }
+
+    try {
+        const res = await fetch("http://localhost:5000/signup", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+            alert("Signup successful! You can now log in.");
+            document.getElementById("signupModal").classList.add("hidden");
+        } else {
+            alert(result.error || "Signup failed.");
+        }
+    } catch (err) {
+        console.error("Signup error:", err);
+        alert("Something went wrong during signup.");
+    }
+});
+
+
+document.getElementById("answerForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const content = document.getElementById("answerEditor").innerHTML.trim();
+
+    if (!content || !currentUser || !currentQuestionId) {
+        alert("Answer cannot be empty or user not logged in.");
+        return;
+    }
+
+    const answerData = {
+        author: currentUser,
+        content: content
+    };
+
+    try {
+        const res = await fetch(`http://localhost:5000/question/${currentQuestionId}/answer`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(answerData)
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+            alert("Answer posted!");
+            // Refresh question to show updated answers
+            showQuestion(currentQuestionId);
+        } else {
+            alert(result.error || "Failed to post answer.");
+        }
+    } catch (err) {
+        console.error("Answer post error:", err);
+        alert("Something went wrong.");
+    }
+});
+
+function handleAskClick() {
+    if (!isLoggedIn) {
+        toggleLogin(); // prompt login if not logged in
+        return;
+    }
+    showScreen('ask');
+}
 
