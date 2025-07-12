@@ -1,0 +1,61 @@
+.rich-editor {
+            min-height: 150px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .notification-badge {
+            animation: pulse 2s infinite;
+        }
+        .tag-pill {
+            transition: all 0.2s ease;
+        }
+        .tag-pill:hover {
+            transform: translateY(-1px);
+        }
+        .vote-button {
+            transition: all 0.2s ease;
+        }
+        .vote-button:hover {
+            transform: scale(1.1);
+        }
+        .accepted-answer {
+            border-left: 4px solid #10b981;
+            background: linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%);
+        }
+        .hamburger-menu {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .hamburger-menu {
+                display: block;
+            }
+            .desktop-nav {
+                display: none;
+            }
+            .mobile-nav.active {
+                display: block;
+            }
+        }
+
+/* Notification Toast Styles */
+#notificationToast {
+    min-width: 250px;
+    max-width: 350px;
+    transition: opacity 0.3s, transform 0.3s;
+    opacity: 0;
+    pointer-events: none;
+}
+#notificationToast.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+#notificationToast.success #notificationToastContent {
+    background-color: #16a34a; /* green-600 */
+}
+#notificationToast.error #notificationToastContent {
+    background-color: #dc2626; /* red-600 */
+}
+#notificationToast.info #notificationToastContent {
+    background-color: #2563eb; /* blue-600 */
+}
