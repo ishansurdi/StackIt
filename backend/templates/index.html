@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StackIt - Question & Answer Forum</title>
+    <link rel="icon" type="image/png" href="images/layers.png">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .rendered-content img {
+            max-width: 100px !important;
+            max-height: 100px !important;
+            height: auto !important;
+            width: auto !important;
+            object-fit: contain;
+            border-radius: 6px;
+            display: block;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        /* Custom glassmorphism effect for header */
+        .glass-header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 2px 16px 0 rgba(0,0,0,0.04);
+        }
+        /* Subtle fade-in for main content */
+        .fade-in {
+            animation: fadeIn 0.7s cubic-bezier(.4,0,.2,1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px);}
+            to { opacity: 1; transform: none;}
+        }
+        /* Notification Toast Styles */
+        #notificationToast {
+            min-width: 250px;
+            max-width: 350px;
+            transition: opacity 0.3s, transform 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #notificationToast.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-white to-blue-100 min-h-screen flex flex-col">
+
+    <!-- ================= NAVIGATION ================= -->
+    <nav class="glass-header shadow-md border-b border-blue-100 sticky top-0 z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <!-- Logo -->
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 shadow">
+                        <img src="images/layers.png" alt="StackIt Logo" class="w-8 h-8 object-contain" />
+                    </span>
+                    <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight cursor-pointer select-none" onclick="showScreen('home')">
+                        StackIt
+                    </h1>
+                    <a href="backend/templates/admin.html" class="ml-6 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-600 text-white font-semibold shadow hover:from-purple-600 hover:to-blue-700 transition">
+        Admin
+    </a>
+                </div>
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex items-center space-x-6 desktop-nav">
+                    <div class="relative w-72">
+                        <input type="text" id="searchInput" placeholder="Search questions..." 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm transition">
+                        <i class="fas fa-search absolute right-3 top-3 text-gray-400 cursor-pointer" onclick="handleSearch()"></i>
+                    </div>
+                    <!-- Filters -->
+                    <div class="flex items-center space-x-2">
+                        <button id="newestBtn" onclick="sortQuestions('newest')" class="sort-button px-4 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-medium transition">
+                            Newest
+                        </button>
+                        <button onclick="filterQuestions('unanswered')" class="px-4 py-1 rounded-lg bg-gray-50 hover:bg-blue-100 text-gray-700 font-medium transition filter-btn">
+                            Unanswered
+                        </button>
+                    </div>
+                    <!-- Notifications -->
+                    <div class="relative">
+                        <button onclick="toggleNotifications()" class="p-2 text-blue-600 hover:text-blue-800 relative transition">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span id="notificationCount" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center notification-badge"></span>
+                        </button>
+                        <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="font-semibold text-gray-900">Notifications</h3>
+                            </div>
+                            <div id="notificationList" class="divide-y divide-gray-200"></div>
+                        </div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <button onclick="handleAskClick()" class="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-5 py-2 rounded-lg shadow hover:from-blue-600 hover:to-blue-800 font-semibold transition">
+                        <i class="fas fa-question-circle mr-2"></i>Ask Question
+                    </button>
+                    <button onclick="toggleLogin()" id="loginBtn" class="text-blue-700 hover:text-white hover:bg-blue-600 px-5 py-2 rounded-lg border border-blue-200 font-semibold transition">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Login
+                    </button>
+                </div>
+                <!-- Mobile Menu Button -->
+                <button class="md:hidden hamburger-menu p-2 rounded hover:bg-blue-100 transition" onclick="toggleMobileMenu()">
+                    <i class="fas fa-bars text-2xl text-blue-700"></i>
+                </button>
+            </div>
+        </div>
+        <!-- Mobile Navigation -->
+        <div id="mobileNav" class="md:hidden mobile-nav bg-white border-t border-gray-200" style="display: none;">
+            <div class="px-4 py-3 space-y-3">
+                <div class="relative">
+                    <input type="text" placeholder="Search questions..." 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
+                    <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="filterQuestions('newest')" class="px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded-lg font-medium">Newest</button>
+                    <button onclick="filterQuestions('unanswered')" class="px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded-lg font-medium">Unanswered</button>
+                    <button onclick="filterQuestions('mostVoted')" class="px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded-lg font-medium">Most Voted</button>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="handleAskClick()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-semibold">Ask Question</button>
+                    <button onclick="toggleLogin()" class="flex-1 text-blue-700 hover:text-white hover:bg-blue-600 px-4 py-2 rounded-lg border border-blue-200 font-semibold">Login</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ================= MAIN CONTENT ================= -->
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full fade-in">
+        <!-- Home Screen -->
+        <div id="homeScreen" class="screen">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-bold text-blue-800">All Questions</h2>
+                <span id="questionCountHeader" class="text-base text-blue-500 bg-blue-50 px-3 py-1 rounded-full shadow">12 questions</span>
+            </div>
+            <div id="questionList" class="space-y-6"></div>
+            <div class="flex justify-center mt-10">
+                <nav class="flex items-center space-x-2">
+                    <button onclick="changePage('prev')" class="px-4 py-2 text-base text-gray-500 hover:text-blue-700 bg-white rounded shadow disabled:opacity-50" id="prevBtn">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <div id="pageNumbers" class="flex space-x-1"></div>
+                    <button onclick="changePage('next')" class="px-4 py-2 text-base text-gray-500 hover:text-blue-700 bg-white rounded shadow disabled:opacity-50" id="nextBtn">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </nav>
+            </div>
+        </div>
+        <!-- Ask Question Screen -->
+        <div id="askScreen" class="screen hidden">
+            <div class="max-w-4xl mx-auto">
+                <!-- Breadcrumb -->
+                <nav class="flex mb-6" aria-label="Breadcrumb">
+                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                        <li class="inline-flex items-center">
+                            <a href="#" onclick="showScreen('home')" class="text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-home mr-1"></i>Home
+                            </a>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                                <span class="text-gray-500">Ask Question</span>
+                            </div>
+                        </li>
+                    </ol>
+                </nav>
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Ask a Question</h2>
+                <form id="askQuestionForm" class="space-y-6">
+                    <!-- Title -->
+                    <div>
+                        <label for="questionTitle" class="block text-sm font-medium text-gray-700 mb-2">
+                            Question Title *
+                        </label>
+                        <input type="text" id="questionTitle" name="title" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="What's your programming question? Be specific.">
+                        <p class="text-sm text-gray-500 mt-1">Be specific and imagine you're asking a question to another person.</p>
+                    </div>
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Description *
+                        </label>
+                        <div class="border border-gray-300 rounded-lg overflow-hidden">
+                            <!-- Rich Text Editor Toolbar -->
+                            <div class="bg-gray-50 px-3 py-2 border-b border-gray-300 flex flex-wrap gap-2">
+                                <button type="button" onclick="formatText('bold')" class="p-1 rounded hover:bg-gray-200" title="Bold"><i class="fas fa-bold"></i></button>
+                                <button type="button" onclick="formatText('italic')" class="p-1 rounded hover:bg-gray-200" title="Italic"><i class="fas fa-italic"></i></button>
+                                <button type="button" onclick="formatText('strikethrough')" class="p-1 rounded hover:bg-gray-200" title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
+                                <div class="border-l border-gray-300 mx-2"></div>
+                                <button type="button" onclick="formatText('insertOrderedList')" class="p-1 rounded hover:bg-gray-200" title="Numbered List"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" onclick="formatText('insertUnorderedList')" class="p-1 rounded hover:bg-gray-200" title="Bullet List"><i class="fas fa-list-ul"></i></button>
+                                <div class="border-l border-gray-300 mx-2"></div>
+                                <button type="button" onclick="formatText('justifyLeft')" class="p-1 rounded hover:bg-gray-200" title="Align Left"><i class="fas fa-align-left"></i></button>
+                                <button type="button" onclick="formatText('justifyCenter')" class="p-1 rounded hover:bg-gray-200" title="Align Center"><i class="fas fa-align-center"></i></button>
+                                <button type="button" onclick="formatText('justifyRight')" class="p-1 rounded hover:bg-gray-200" title="Align Right"><i class="fas fa-align-right"></i></button>
+                                <div class="border-l border-gray-300 mx-2"></div>
+                                <button type="button" onclick="insertLink()" class="p-1 rounded hover:bg-gray-200" title="Insert Link"><i class="fas fa-link"></i></button>
+                                <button type="button" onclick="toggleEmojiPicker()" class="p-1 rounded hover:bg-gray-200" title="Insert Emoji"><i class="fas fa-smile"></i></button>
+                                <button type="button" onclick="document.getElementById('imageUpload').click()" class="p-1 rounded hover:bg-gray-200" title="Upload Image"><i class="fas fa-image"></i></button>
+                                <input type="file" id="imageUpload" accept="image/*" class="hidden" onchange="insertImage(this)">
+                            </div>
+                            <!-- Emoji Picker -->
+                            <div id="emojiPicker" class="hidden bg-white border-b border-gray-300 p-3">
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" onclick="insertEmoji('😀')" class="hover:bg-gray-100 p-1 rounded">😀</button>
+                                    <button type="button" onclick="insertEmoji('😂')" class="hover:bg-gray-100 p-1 rounded">😂</button>
+                                    <button type="button" onclick="insertEmoji('😍')" class="hover:bg-gray-100 p-1 rounded">😍</button>
+                                    <button type="button" onclick="insertEmoji('🤔')" class="hover:bg-gray-100 p-1 rounded">🤔</button>
+                                    <button type="button" onclick="insertEmoji('👍')" class="hover:bg-gray-100 p-1 rounded">👍</button>
+                                    <button type="button" onclick="insertEmoji('👎')" class="hover:bg-gray-100 p-1 rounded">👎</button>
+                                    <button type="button" onclick="insertEmoji('🔥')" class="hover:bg-gray-100 p-1 rounded">🔥</button>
+                                    <button type="button" onclick="insertEmoji('💯')" class="hover:bg-gray-100 p-1 rounded">💯</button>
+                                    <button type="button" onclick="insertEmoji('🎉')" class="hover:bg-gray-100 p-1 rounded">🎉</button>
+                                    <button type="button" onclick="insertEmoji('🚀')" class="hover:bg-gray-100 p-1 rounded">🚀</button>
+                                </div>
+                            </div>
+                            <!-- Rich Text Editor -->
+                            <div id="richTextEditor" class="rich-editor px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                contenteditable="true" 
+                                data-placeholder="Describe your problem in detail. Include what you've tried and what you expect to happen."></div>
+                        </div>
+                        <div id="imagePreview" class="mt-2 hidden">
+                            <img id="previewImg" class="max-w-full h-auto max-h-48 rounded-lg border border-gray-300">
+                        </div>
+                    </div>
+                    <!-- Tags -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Tags * (Select at least one)
+                        </label>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="tagSelection"></div>
+                        <div id="selectedTags" class="mt-3 flex flex-wrap gap-2"></div>
+                    </div>
+                    <!-- Submit Button -->
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="showScreen('home')" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Post Question
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- Question Details Screen -->
+        <div id="questionScreen" class="screen hidden">
+            <div class="max-w-4xl mx-auto">
+                <!-- Breadcrumb -->
+                <nav class="flex mb-6" aria-label="Breadcrumb">
+                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                        <li class="inline-flex items-center">
+                            <a href="#" onclick="showScreen('home')" class="text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-home mr-1"></i>Home
+                            </a>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                                <span class="text-gray-500" id="questionBreadcrumb">Question Details</span>
+                            </div>
+                        </li>
+                    </ol>
+                </nav>
+                <!-- Question Details -->
+                <div id="questionDetails" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"></div>
+                <!-- Answers Section -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Answers</h3>
+                    <div id="answersList" class="space-y-6 mb-8"></div>
+                    <!-- Answer Form -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-4">Your Answer</h4>
+                        <form id="answerForm">
+                            <div class="border border-gray-300 rounded-lg overflow-hidden">
+                                <!-- Rich Text Editor Toolbar -->
+                                <div class="bg-gray-50 px-3 py-2 border-b border-gray-300 flex flex-wrap gap-2">
+                                    <button type="button" onclick="formatAnswerText('bold')" class="p-1 rounded hover:bg-gray-200" title="Bold"><i class="fas fa-bold"></i></button>
+                                    <button type="button" onclick="formatAnswerText('italic')" class="p-1 rounded hover:bg-gray-200" title="Italic"><i class="fas fa-italic"></i></button>
+                                    <button type="button" onclick="formatAnswerText('strikethrough')" class="p-1 rounded hover:bg-gray-200" title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
+                                    <div class="border-l border-gray-300 mx-2"></div>
+                                    <button type="button" onclick="formatAnswerText('insertOrderedList')" class="p-1 rounded hover:bg-gray-200" title="Numbered List"><i class="fas fa-list-ol"></i></button>
+                                    <button type="button" onclick="formatAnswerText('insertUnorderedList')" class="p-1 rounded hover:bg-gray-200" title="Bullet List"><i class="fas fa-list-ul"></i></button>
+                                    <div class="border-l border-gray-300 mx-2"></div>
+                                    <button type="button" onclick="insertAnswerLink()" class="p-1 rounded hover:bg-gray-200" title="Insert Link"><i class="fas fa-link"></i></button>
+                                    <button type="button" onclick="toggleAnswerEmojiPicker()" class="p-1 rounded hover:bg-gray-200" title="Insert Emoji"><i class="fas fa-smile"></i></button>
+                                </div>
+                                <!-- Emoji Picker -->
+                                <div id="answerEmojiPicker" class="hidden bg-white border-b border-gray-300 p-3">
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button" onclick="insertAnswerEmoji('😀')" class="hover:bg-gray-100 p-1 rounded">😀</button>
+                                        <button type="button" onclick="insertAnswerEmoji('😂')" class="hover:bg-gray-100 p-1 rounded">😂</button>
+                                        <button type="button" onclick="insertAnswerEmoji('😍')" class="hover:bg-gray-100 p-1 rounded">😍</button>
+                                        <button type="button" onclick="insertAnswerEmoji('🤔')" class="hover:bg-gray-100 p-1 rounded">🤔</button>
+                                        <button type="button" onclick="insertAnswerEmoji('👍')" class="hover:bg-gray-100 p-1 rounded">👍</button>
+                                        <button type="button" onclick="insertAnswerEmoji('👎')" class="hover:bg-gray-100 p-1 rounded">👎</button>
+                                        <button type="button" onclick="insertAnswerEmoji('🔥')" class="hover:bg-gray-100 p-1 rounded">🔥</button>
+                                        <button type="button" onclick="insertAnswerEmoji('💯')" class="hover:bg-gray-100 p-1 rounded">💯</button>
+                                        <button type="button" onclick="insertAnswerEmoji('🎉')" class="hover:bg-gray-100 p-1 rounded">🎉</button>
+                                        <button type="button" onclick="insertAnswerEmoji('🚀')" class="hover:bg-gray-100 p-1 rounded">🚀</button>
+                                    </div>
+                                </div>
+                                <!-- Rich Text Editor -->
+                                <div id="answerEditor" class="rich-editor px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                    contenteditable="true" 
+                                    data-placeholder="Write your answer here..."></div>
+                                <p id="answerDisabledReason" class="text-sm text-red-600 mt-2 hidden">
+                                    ❗ This question already has an accepted answer. No more answers are allowed.
+                                </p>
+                            </div>
+                            <div class="flex justify-end mt-4">
+                                <button type="submit" id="submitAnswerBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    Post Answer
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ================= MODALS ================= -->
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Login to StackIt</h3>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input type="text" id="username" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mt-4 text-center text-sm text-gray-600">
+                    Don't have an account?
+                    <a href="#" onclick="toggleSignup()" class="text-blue-600 hover:underline font-medium">Sign up</a>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeLoginModal()" class="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Login
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Signup Modal -->
+    <div id="signupModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Create Account</h3>
+            <form id="signupForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input type="text" id="signupUsername" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="signupEmail" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="signupPassword" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeSignupModal()" class="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Sign Up
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Mention Box -->
+    <div id="mentionBox" class="absolute bg-white border border-gray-300 shadow-md rounded w-48 hidden z-50"></div>
+    <!-- Notification Toast -->
+    <div id="notificationToast" class="fixed top-6 right-6 z-50 hidden">
+        <div id="notificationToastContent" class="px-6 py-4 rounded shadow-lg text-white bg-red-600 flex items-center gap-3"></div>
+    </div>
+
+    <!-- ================= FOOTER ================= -->
+    <footer class="bg-gradient-to-r from-blue-50 via-white to-blue-100 border-t border-gray-200 mt-8 py-8 shadow-inner">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between">
+        <div class="flex items-center space-x-3 text-gray-700 text-base">
+            <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 shadow">
+                <i class="fas fa-code text-blue-600 text-xl"></i>
+            </span>
+            <span class="ml-2">
+                Made By
+                <a href="https://github.com/ishansurdi" target="_blank" rel="noopener"
+                   class="font-bold text-blue-700 hover:underline hover:text-blue-900 transition-colors duration-200">
+                    Ishan Surdi
+                </a>
+            </span>
+        </div>
+        <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 space-x-0 md:space-x-2 mt-4 md:mt-0">
+            <span class="text-xs text-gray-400">&copy; 2025 StackIt. All rights reserved.</span>
+            <span class="hidden md:inline-block text-gray-300">|</span>
+            <a href="https://github.com/ishansurdi/StackIt" target="_blank" rel="noopener"
+               class="text-xs text-blue-500 hover:text-blue-700 transition-colors duration-200 flex items-center gap-1">
+                <i class="fab fa-github"></i> View on GitHub
+            </a>
+            <span class="hidden md:inline-block text-gray-300">|</span>
+            <a href="https://www.flaticon.com/free-icons/graphic-design" target="_blank" rel="noopener"
+               class="text-xs text-gray-400 hover:text-blue-600 transition-colors duration-200 flex items-center gap-1 mt-1 md:mt-0">
+                <!-- <svg width="16" height="16" fill="currentColor" class="inline-block text-blue-400" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 5.523 4.477 10 10 10s10-4.477 10-10c0-5.523-4.477-10-10-10zm0 18c-4.418 0-8-3.582-8-8 0-1.657.672-3.156 1.757-4.243l10.486 10.486A7.963 7.963 0 0 1 12 20zm6.243-3.757L7.757 5.757A7.963 7.963 0 0 1 12 4c4.418 0 8 3.582 8 8 0 1.657-.672 3.156-1.757 4.243z"/></svg> -->
+                Graphic design icons by Freepik - Flaticon
+            </a>
+        </div>
+    </div>
+</footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

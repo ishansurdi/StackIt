@@ -21,7 +21,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all domains
 @app.route('/')
 def home():
-    return render_template("../../index.html")
+    return render_template("index.html")
 
 # MongoDB Atlas connection
 client = MongoClient(f"mongodb+srv://ishansurdi:{db_password}@stackit.y9ftesn.mongodb.net/?retryWrites=true&w=majority&appName=StackIt",
