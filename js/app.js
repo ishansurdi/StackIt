@@ -7,6 +7,11 @@ let isLoggedIn = false;
 let currentUser = null;
 let currentQuestionId = null;
 let selectedTags = [];
+let allUsernames = [];
+// let currentSort = 'newest'; 
+// // global sort state
+let currentSort = null; // 'newest' | 'mostVoted' | etc.
+let lastSortedQuestions = []; // stores backend-fetched raw data
 
 // Predefined list of available tags
 const availableTags = [
@@ -28,6 +33,21 @@ function formatDate(isoString) {
         hour12: true
     });
 }
+async function fetchAllUsernames() {
+    try {
+        const res = await fetch("http://localhost:5000/users");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            allUsernames = data;
+        }
+    } catch (err) {
+        console.error("Failed to fetch usernames", err);
+    }
+}
+
+function highlightMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="text-green-600 font-semibold">@$1</span>');
+}
 
 // Fetch All Questions from Backend
 async function fetchQuestions() {
@@ -43,16 +63,19 @@ async function fetchQuestions() {
 // Render Questions on Home Screen
 function renderQuestionsList(questions) {
     const questionList = document.getElementById('questionList');
+    const countHeader = document.getElementById('questionCountHeader');
+    countHeader.textContent = `Total questions on portal: ${questions.length} `;
     questionList.innerHTML = '';
 
     questions.forEach(q => {
         const id = q._id || q.id;
         const div = document.createElement('div');
+        
         div.className = 'bg-white p-4 rounded-lg shadow border border-gray-200';
         div.innerHTML = `
             <div class="flex justify-between items-center">
                 <h3 class="text-lg font-semibold text-blue-700 cursor-pointer" onclick="showQuestion('${id}')">${q.title}</h3>
-                <span class="text-xs text-gray-500">${q.votes || 0} votes</span>
+                <span class="text-xs text-gray-500">${q.upvotes || 0} Upvotes</span>
             </div>
             <div class="text-sm text-gray-600 mt-2">${q.description}</div>
             <div class="flex gap-2 mt-2">
@@ -64,9 +87,52 @@ function renderQuestionsList(questions) {
 }
 
 async function renderQuestions() {
-    const questions = await fetchQuestions();
+    let questions = await fetchQuestions()
+    lastSortedQuestions = [...questions]; 
     renderQuestionsList(questions);
 }
+function sortQuestions(criteria) {
+    if (!lastSortedQuestions.length) {
+        console.warn("Questions not yet loaded!");
+        return;
+    }
+
+    const isSameSort = currentSort === criteria;
+
+    if (isSameSort) {
+        currentSort = null;
+
+        renderQuestionsList([...lastSortedQuestions]);
+
+        document.querySelectorAll('.sort-button').forEach(btn => {
+            btn.classList.remove('bg-blue-500', 'text-white');
+            btn.classList.add('bg-gray-200', 'text-black');
+        });
+
+    } else {
+        currentSort = criteria;
+
+        const sorted = [...lastSortedQuestions]; // clone original
+
+        if (criteria === 'newest') {
+            sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+
+        renderQuestionsList(sorted);
+
+        document.querySelectorAll('.sort-button').forEach(btn => {
+            btn.classList.remove('bg-blue-500', 'text-white');
+            btn.classList.add('bg-gray-200', 'text-black');
+        });
+
+        const activeBtn = document.getElementById(`${criteria}Btn`);
+        if (activeBtn) {
+            activeBtn.classList.add('bg-blue-500', 'text-white');
+            activeBtn.classList.remove('bg-gray-200', 'text-black');
+        }
+    }
+}
+
 
 // Show Screens with Login Restriction
 async function showScreen(screen) {
@@ -88,7 +154,6 @@ async function showScreen(screen) {
 
 // Show Question Details with ID and Title in Answer Header
 async function showQuestion(id) {
-    // If user not logged in, show login modal
     if (!isLoggedIn) {
         toggleLogin();
         return;
@@ -102,6 +167,9 @@ async function showQuestion(id) {
         if (!res.ok) throw new Error("Failed to fetch question");
         const data = await res.json();
 
+        window.questionAuthor = data.author;
+        window.hasAcceptedAnswer = data.hasAcceptedAnswer || false;
+
         const formattedTime = new Date(data.timestamp).toLocaleString("en-IN", {
             weekday: "long",
             year: "numeric",
@@ -112,7 +180,6 @@ async function showQuestion(id) {
             hour12: true
         });
 
-        // Populate Question Details
         document.getElementById("questionDetails").innerHTML = `
             <h2 class="text-2xl font-bold text-blue-800 mb-2">${data.title}</h2>
             <div class="text-sm text-gray-600 mb-3">
@@ -125,27 +192,31 @@ async function showQuestion(id) {
             </div>
         `;
 
-        // Clear previous answers and editor content
         const answersList = document.getElementById("answersList");
+        const editor = document.getElementById("answerEditor");
+        const submitBtn = document.getElementById("submitAnswerBtn");
+        const reasonBox = document.getElementById("answerDisabledReason");
+
         answersList.innerHTML = "";
-        document.getElementById("answerEditor").innerHTML = "";
+        editor.innerHTML = "";
 
-        // Render Answers if available
+        if (window.hasAcceptedAnswer) {
+            editor.setAttribute("contenteditable", "false");
+            editor.classList.add("opacity-50", "pointer-events-none", "bg-gray-100");
+            submitBtn.disabled = true;
+            if (reasonBox) {
+                reasonBox.classList.remove("hidden");
+                reasonBox.textContent = "❗ This question already has an accepted answer. No more answers are allowed.";
+            }
+        } else {
+            editor.setAttribute("contenteditable", "true");
+            editor.classList.remove("opacity-50", "pointer-events-none", "bg-gray-100");
+            submitBtn.disabled = false;
+            if (reasonBox) reasonBox.classList.add("hidden");
+        }
+
         if (data.answers && data.answers.length > 0) {
-            data.answers.forEach(ans => {
-                const ansDiv = document.createElement("div");
-                ansDiv.className = "border p-4 rounded shadow-sm bg-gray-50";
-                const ansTime = new Date(ans.timestamp).toLocaleString("en-IN");
-
-                ansDiv.innerHTML = `
-                    <div class="text-gray-800">${ans.content}</div>
-                    <div class="text-xs text-gray-500 mt-2">
-                        Answered by <strong>${ans.author}</strong> on ${ansTime}
-                    </div>
-                `;
-
-                answersList.appendChild(ansDiv);
-            });
+            renderAnswers(data.answers);
         } else {
             answersList.innerHTML = `<div class="text-gray-400">No answers yet. Be the first to answer!</div>`;
         }
@@ -324,6 +395,7 @@ function insertAnswerEmoji(emoji) {
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
     renderAvailableTags();
+    fetchAllUsernames(); 
     showScreen('home');
 });
 
@@ -353,6 +425,7 @@ document.getElementById('loginForm').addEventListener('submit', async function (
             currentUser = result.username;
             closeLoginModal();
             updateLoginStatusUI();
+            fetchNotifications(); // 🔔 Load immediately after login
             alert("Login successful!");
         } else {
             alert(result.error || "Login failed.");
@@ -444,4 +517,234 @@ function handleAskClick() {
     }
     showScreen('ask');
 }
+function voteAnswer(index, type) {
+    const questionId = currentQuestionId;
 
+    if (!currentUser) {
+        alert("You must be logged in to vote.");
+        return;
+    }
+
+    fetch(`http://localhost:5000/question/${questionId}/answer/${index}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, username: currentUser }) // ✅ pass username
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.message) {
+            // Refresh the question screen to reflect updated vote counts
+            showQuestion(questionId);
+        } else {
+            alert("Vote failed: " + data.error);
+        }
+    })
+    .catch(err => console.error("Vote error", err));
+}
+
+
+function renderAnswers(answers) {
+    const answersList = document.getElementById('answersList');
+    answersList.innerHTML = '';
+
+    answers.forEach((answer, index) => {
+        const answerCard = document.createElement('div');
+        answerCard.className = "p-4 bg-gray-50 rounded-lg border border-gray-200";
+
+        const timestamp = new Date(answer.timestamp).toLocaleString("en-IN");
+
+        const isAccepted = answer.accepted;
+        const acceptedBadge = isAccepted
+            ? `<div class="text-green-700 font-semibold mt-2">✅ Accepted Answer</div>`
+            : '';
+
+        let acceptButtonHTML = '';
+
+        if (currentUser === window.questionAuthor) {
+            if (!isAccepted && !window.hasAcceptedAnswer) {
+                acceptButtonHTML = `
+                    <button 
+                        onclick="acceptAnswer(${index})" 
+                        id="accept-btn-${index}" 
+                        class="text-green-600 text-sm hover:underline">
+                        ✅ Accept Answer
+                    </button>`;
+            } else if (!isAccepted && window.hasAcceptedAnswer) {
+                acceptButtonHTML = `
+                    <button 
+                        disabled 
+                        class="text-gray-400 text-sm cursor-not-allowed">
+                        ✅ Accept Answer
+                    </button>
+                    <div class="text-xs text-red-500 italic">Only one answer can be accepted per question.</div>`;
+            }
+        }
+
+        answerCard.innerHTML = `
+            <div class="text-gray-800 mb-2">${answer.content}</div>
+            <div class="text-sm text-gray-500 mb-2">
+                Answered by <strong>${answer.author}</strong> on ${timestamp}
+            </div>
+            <div class="flex items-center space-x-4 text-gray-600">
+                <button onclick="voteAnswer(${index}, 'up')" class="flex items-center space-x-1 hover:text-green-600">
+                    <i class="fas fa-thumbs-up"></i>
+                    <span id="upvotes-${index}">${answer.upvotes || 0}</span>
+                </button>
+                <button onclick="voteAnswer(${index}, 'down')" class="flex items-center space-x-1 hover:text-red-600">
+                    <i class="fas fa-thumbs-down"></i>
+                    <span id="downvotes-${index}">${answer.downvotes || 0}</span>
+                </button>
+                ${acceptButtonHTML}
+            </div>
+            ${acceptedBadge}
+        `;
+
+        answersList.appendChild(answerCard);
+    });
+}
+
+function acceptAnswer(index) {
+    if (!currentUser || currentUser !== window.questionAuthor) {
+        alert("Only the question author can accept an answer.");
+        return;
+    }
+
+    fetch(`http://localhost:5000/question/${currentQuestionId}/answer/${index}/accept`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username: currentUser })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.message) {
+            alert(data.message);
+            window.hasAcceptedAnswer = true; // ✅ update global state
+            showQuestion(currentQuestionId); // ✅ refresh question view
+        } else {
+            alert("Failed: " + data.error);
+        }
+    })
+    .catch(err => {
+        console.error("Accept error:", err);
+        alert("Something went wrong.");
+    });
+}
+
+
+async function toggleNotifications() {
+    const dropdown = document.getElementById("notificationDropdown");
+    dropdown.classList.toggle("hidden");
+
+    if (!dropdown.classList.contains("hidden")) {
+        await fetchNotifications(); // Load notifications when opened
+    }
+}
+
+async function fetchNotifications() {
+    if (!currentUser) return;
+
+    try {
+        const res = await fetch(`http://localhost:5000/notifications/${currentUser}`);
+        const notifications = await res.json();
+        renderNotificationList(notifications);
+        updateNotificationCount(notifications);
+    } catch (err) {
+        console.error("Failed to load notifications", err);
+    }
+}
+
+function renderNotificationList(notifications) {
+    const list = document.getElementById("notificationList");
+    list.innerHTML = "";
+
+    if (!notifications.length) {
+        list.innerHTML = `<div class="p-4 text-gray-500 text-sm">No new notifications.</div>`;
+        return;
+    }
+
+    notifications.forEach(n => {
+        const item = document.createElement("div");
+        item.className = "p-3 hover:bg-gray-100 cursor-pointer text-sm text-gray-800";
+        item.innerHTML = `
+            <div>${n.message}</div>
+            <div class="text-xs text-gray-500">${new Date(n.timestamp).toLocaleString()}</div>
+        `;
+        item.onclick = () => {
+            window.location.href = "#"; // you can redirect to question detail page if needed
+        };
+        list.appendChild(item);
+    });
+}
+
+function updateNotificationCount(notifications) {
+    const unread = notifications.filter(n => !n.read).length;
+    const badge = document.getElementById("notificationCount");
+
+    if (unread > 0) {
+        badge.textContent = unread;
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
+    }
+}
+
+
+function enableMentionDetection(editorId) {
+    const editor = document.getElementById(editorId);
+    const mentionBox = document.getElementById("mentionBox");
+
+    editor.addEventListener("keyup", (e) => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+
+        const textBeforeCursor = selection.anchorNode?.textContent?.slice(0, selection.anchorOffset) || "";
+
+        const match = textBeforeCursor.match(/@(\w*)$/);
+        if (match) {
+            const query = match[1].toLowerCase();
+            const matches = allUsernames.filter(name => name.toLowerCase().startsWith(query)).slice(0, 5);
+
+            if (matches.length > 0) {
+                mentionBox.innerHTML = matches.map(u =>
+                    `<div class="px-3 py-1 hover:bg-blue-100 cursor-pointer" onclick="insertMention('${u}', '${editorId}')">@${u}</div>`
+                ).join("");
+                const rect = editor.getBoundingClientRect();
+                mentionBox.style.top = (rect.top + window.scrollY + 30) + "px";
+                mentionBox.style.left = (rect.left + 20) + "px";
+                mentionBox.classList.remove("hidden");
+                return;
+            }
+        }
+
+        mentionBox.classList.add("hidden");
+    });
+}
+
+function insertMention(username, editorId) {
+    const editor = document.getElementById(editorId);
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const textNode = range.startContainer;
+
+    // Replace "@query" with "@username"
+    const content = textNode.textContent;
+    const cursorPos = range.startOffset;
+    const beforeCursor = content.slice(0, cursorPos);
+    const match = beforeCursor.match(/@(\w*)$/);
+    if (match) {
+        const newText = beforeCursor.replace(/@(\w*)$/, `@${username} `);
+        textNode.textContent = newText + content.slice(cursorPos);
+        range.setStart(textNode, newText.length);
+        range.setEnd(textNode, newText.length);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    document.getElementById("mentionBox").classList.add("hidden");
+}
+enableMentionDetection("richTextEditor");
+enableMentionDetection("answerEditor");

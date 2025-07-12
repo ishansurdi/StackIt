@@ -30,9 +30,10 @@
                     
                     <!-- Filters -->
                     <div class="flex items-center space-x-2">
-                        <button onclick="filterQuestions('newest')" class="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg filter-btn active">
+                        <button id="newestBtn" onclick="sortQuestions('newest')" class="sort-button px-3 py-1  hover:bg-blue-500 hover:text-white transition">
                             Newest
                         </button>
+
                         <button onclick="filterQuestions('unanswered')" class="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg filter-btn">
                             Unanswered
                         </button>
@@ -52,7 +53,7 @@
                     <div class="relative">
                         <button onclick="toggleNotifications()" class="p-2 text-gray-600 hover:text-gray-900 relative">
                             <i class="fas fa-bell text-lg"></i>
-                            <span id="notificationCount" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center notification-badge">3</span>
+                            <span id="notificationCount" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center notification-badge"></span>
                         </button>
                         <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
                             <div class="p-4 border-b border-gray-200">
@@ -107,7 +108,7 @@
         <div id="homeScreen" class="screen">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">All Questions</h2>
-                <span id="questionCount" class="text-sm text-gray-600">12 questions</span>
+                <span id="questionCountHeader" class="text-sm text-gray-600">12 questions</span>
             </div>
 
             <!-- Question List -->
@@ -233,6 +234,8 @@
                                  contenteditable="true" 
                                  data-placeholder="Describe your problem in detail. Include what you've tried and what you expect to happen.">
                             </div>
+                            <!-- Disabled Reason Message -->
+
                         </div>
                         <div id="imagePreview" class="mt-2 hidden">
                             <img id="previewImg" class="max-w-full h-auto max-h-48 rounded-lg border border-gray-300">
@@ -351,10 +354,14 @@
                                      contenteditable="true" 
                                      data-placeholder="Write your answer here...">
                                 </div>
+                                <!-- Disabled Reason Message -->
+                                <p id="answerDisabledReason" class="text-sm text-red-600 mt-2 hidden">
+                                    ❗ This question already has an accepted answer. No more answers are allowed.
+                                </p>
                             </div>
                             
                             <div class="flex justify-end mt-4">
-                                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                <button type="submit" id="submitAnswerBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                                     Post Answer
                                 </button>
                             </div>
@@ -426,6 +433,7 @@
         </form>
     </div>
 </div>
+<div id="mentionBox" class="absolute bg-white border border-gray-300 shadow-md rounded w-48 hidden z-50"></div>
 
 
     <script src="js/app.js"></script>
