@@ -19,6 +19,9 @@ db_password = os.getenv("DB_PASSWORD")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all domains
+@app.route('/')
+def home():
+    return render_template("../../index.html")
 
 # MongoDB Atlas connection
 client = MongoClient(f"mongodb+srv://ishansurdi:{db_password}@stackit.y9ftesn.mongodb.net/?retryWrites=true&w=majority&appName=StackIt",
@@ -55,9 +58,7 @@ def contains_offensive_content(text):
     lower_text = text.lower()
     return any(word in lower_text for word in offensive_words)
 
-@app.route('/')
-def home():
-    return "Hello from Flask on Render!"
+
 
 
 @app.route("/signup", methods=["POST"])
