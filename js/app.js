@@ -1,4 +1,4 @@
-// Global State
+// =================== GLOBAL STATE ===================
 let currentScreen = 'home';
 let currentPage = 1;
 let questionsPerPage = 5;
@@ -8,8 +8,6 @@ let currentUser = null;
 let currentQuestionId = null;
 let selectedTags = [];
 let allUsernames = [];
-// let currentSort = 'newest'; 
-// // global sort state
 let currentSort = null; // 'newest' | 'mostVoted' | etc.
 let lastSortedQuestions = []; // stores backend-fetched raw data
 
@@ -20,7 +18,79 @@ const availableTags = [
     "performance", "flexbox", "grid", "layout", "design", "rest"
 ];
 
-// Helper: Format Timestamp
+// =================== PAGINATION ===================
+async function fetchQuestionsPaginated(page = 1, sort = null) {
+    try {
+        let url = `http://localhost:5000/questions/page/${page}`;
+        if (sort) url += `?sort=${sort}`;
+        const res = await fetch(url);
+        return await res.json();
+    } catch (err) {
+        console.error("Failed to fetch paginated questions", err);
+        return { questions: [], total: 0, total_pages: 0 };
+    }
+}
+
+function renderPagination(currentPage, totalPages) {
+    const pageContainer = document.getElementById("pageNumbers");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+
+    pageContainer.innerHTML = "";
+
+    const pagesToShow = [];
+
+    // Always show first 3 pages
+    for (let i = 1; i <= Math.min(3, totalPages); i++) {
+        pagesToShow.push(i);
+    }
+
+    // Add ellipsis if there are skipped pages
+    if (totalPages > 4 && currentPage > 4) {
+        pageContainer.innerHTML += `<span class="px-2">...</span>`;
+    }
+
+    // Always show last page if not already shown
+    if (!pagesToShow.includes(totalPages)) {
+        pagesToShow.push(totalPages);
+    }
+
+    // Render buttons
+    pagesToShow.forEach(page => {
+        const btn = document.createElement("button");
+        btn.textContent = page;
+        btn.className = `px-3 py-1 text-sm rounded ${page === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}`;
+        btn.onclick = () => renderQuestions(page);
+        pageContainer.appendChild(btn);
+    });
+
+    // Prev/Next enable/disable
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+
+    prevBtn.onclick = () => {
+        if (currentPage > 1) renderQuestions(currentPage - 1);
+    };
+    nextBtn.onclick = () => {
+        if (currentPage < totalPages) renderQuestions(currentPage + 1);
+    };
+}
+async function fetchQuestionsPaginated(page = 1, sort = null) {
+    try {
+        let url = `http://localhost:5000/questions/page/${page}`;
+        if (sort) {
+            url += `?sort=${sort}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        return data;
+    } catch (err) {
+        console.error("Failed to fetch paginated questions", err);
+        return { questions: [], total: 0, total_pages: 0 };
+    }
+}
+
+// =================== HELPER FUNCTIONS ===================
 function formatDate(isoString) {
     const date = new Date(isoString);
     return date.toLocaleString("en-IN", {
@@ -33,6 +103,12 @@ function formatDate(isoString) {
         hour12: true
     });
 }
+
+function highlightMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="text-green-600 font-semibold">@$1</span>');
+}
+
+// =================== FETCH FUNCTIONS ===================
 async function fetchAllUsernames() {
     try {
         const res = await fetch("http://localhost:5000/users");
@@ -45,11 +121,6 @@ async function fetchAllUsernames() {
     }
 }
 
-function highlightMentions(text) {
-    return text.replace(/@(\w+)/g, '<span class="text-green-600 font-semibold">@$1</span>');
-}
-
-// Fetch All Questions from Backend
 async function fetchQuestions() {
     try {
         const res = await fetch("http://localhost:5000/questions");
@@ -60,7 +131,20 @@ async function fetchQuestions() {
     }
 }
 
-// Render Questions on Home Screen
+async function fetchNotifications() {
+    if (!currentUser) return;
+
+    try {
+        const res = await fetch(`http://localhost:5000/notifications/${currentUser}`);
+        const notifications = await res.json();
+        renderNotificationList(notifications);
+        updateNotificationCount(notifications);
+    } catch (err) {
+        console.error("Failed to load notifications", err);
+    }
+}
+
+// =================== RENDER FUNCTIONS ===================
 function renderQuestionsList(questions) {
     const questionList = document.getElementById('questionList');
     const countHeader = document.getElementById('questionCountHeader');
@@ -77,7 +161,7 @@ function renderQuestionsList(questions) {
                 <h3 class="text-lg font-semibold text-blue-700 cursor-pointer" onclick="showQuestion('${id}')">${q.title}</h3>
                 <span class="text-xs text-gray-500">${q.upvotes || 0} Upvotes</span>
             </div>
-            <div class="text-sm text-gray-600 mt-2">${q.description}</div>
+            <div class="text-sm text-gray-600 mt-2 rendered-content">${q.description}</div>
             <div class="flex gap-2 mt-2">
                 ${q.tags.map(tag => `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">${tag}</span>`).join('')}
             </div>
@@ -86,55 +170,150 @@ function renderQuestionsList(questions) {
     });
 }
 
-async function renderQuestions() {
-    let questions = await fetchQuestions()
-    lastSortedQuestions = [...questions]; 
-    renderQuestionsList(questions);
+async function renderQuestions(page = 1, sort = null) {
+    const data = await fetchQuestionsPaginated(page, sort);
+    lastSortedQuestions = [...data.questions];
+
+    renderQuestionsList(data.questions);
+    renderPagination(data.page, data.total_pages);
 }
-function sortQuestions(criteria) {
-    if (!lastSortedQuestions.length) {
-        console.warn("Questions not yet loaded!");
+
+function renderAvailableTags() {
+    const tagContainer = document.getElementById("tagSelection");
+    tagContainer.innerHTML = "";
+    availableTags.forEach(tag => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tag-button px-2 py-1 bg-gray-100 rounded text-sm hover:bg-blue-200";
+        btn.textContent = tag;
+        btn.onclick = () => toggleTagSelection(tag);
+        tagContainer.appendChild(btn);
+    });
+}
+
+function renderAnswers(answers) {
+    const answersList = document.getElementById('answersList');
+    answersList.innerHTML = '';
+
+    answers.forEach((answer, index) => {
+        const answerCard = document.createElement('div');
+        answerCard.className = "p-4 bg-gray-50 rounded-lg border border-gray-200";
+
+        const timestamp = new Date(answer.timestamp).toLocaleString("en-IN");
+
+        const isAccepted = answer.accepted;
+        const acceptedBadge = isAccepted
+            ? `<div class="text-green-700 font-semibold mt-2">✅ Accepted Answer</div>`
+            : '';
+
+        let acceptButtonHTML = '';
+
+        if (currentUser === window.questionAuthor) {
+            if (!isAccepted && !window.hasAcceptedAnswer) {
+                acceptButtonHTML = `
+                    <button 
+                        onclick="acceptAnswer(${index})" 
+                        id="accept-btn-${index}" 
+                        class="text-green-600 text-sm hover:underline">
+                        ✅ Accept Answer
+                    </button>`;
+            } else if (!isAccepted && window.hasAcceptedAnswer) {
+                acceptButtonHTML = `
+                    <button 
+                        disabled 
+                        class="text-gray-400 text-sm cursor-not-allowed">
+                        ✅ Accept Answer
+                    </button>
+                    <div class="text-xs text-red-500 italic">Only one answer can be accepted per question.</div>`;
+            }
+        }
+
+        answerCard.innerHTML = `
+            <div class="text-gray-800 mb-2 rendered-content">${answer.content}</div>
+            <div class="text-sm text-gray-500 mb-2">
+                Answered by <strong>${answer.author}</strong> on ${timestamp}
+            </div>
+            <div class="flex items-center space-x-4 text-gray-600">
+                <button onclick="voteAnswer(${index}, 'up')" class="flex items-center space-x-1 hover:text-green-600">
+                    <i class="fas fa-thumbs-up"></i>
+                    <span id="upvotes-${index}">${answer.upvotes || 0}</span>
+                </button>
+                <button onclick="voteAnswer(${index}, 'down')" class="flex items-center space-x-1 hover:text-red-600">
+                    <i class="fas fa-thumbs-down"></i>
+                    <span id="downvotes-${index}">${answer.downvotes || 0}</span>
+                </button>
+                ${acceptButtonHTML}
+            </div>
+            ${acceptedBadge}
+        `;
+
+        answersList.appendChild(answerCard);
+    });
+}
+
+function renderNotificationList(notifications) {
+    const list = document.getElementById("notificationList");
+    list.innerHTML = "";
+
+    if (!notifications.length) {
+        list.innerHTML = `<div class="p-4 text-gray-500 text-sm">No new notifications.</div>`;
         return;
     }
 
+    notifications.forEach(n => {
+        const item = document.createElement("div");
+        item.className = "p-3 hover:bg-gray-100 cursor-pointer text-sm text-gray-800";
+        item.innerHTML = `
+            <div>${n.message}</div>
+            <div class="text-xs text-gray-500">${new Date(n.timestamp).toLocaleString()}</div>
+        `;
+        item.onclick = () => {
+            window.location.href = "#"; // you can redirect to question detail page if needed
+        };
+        list.appendChild(item);
+    });
+}
+
+function updateNotificationCount(notifications) {
+    const unread = notifications.filter(n => !n.read).length;
+    const badge = document.getElementById("notificationCount");
+
+    if (unread > 0) {
+        badge.textContent = unread;
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
+    }
+}
+
+// =================== SORTING ===================
+async function sortQuestions(criteria) {
     const isSameSort = currentSort === criteria;
 
     if (isSameSort) {
+        // Reset to default (unsorted)
         currentSort = null;
-
-        renderQuestionsList([...lastSortedQuestions]);
-
-        document.querySelectorAll('.sort-button').forEach(btn => {
-            btn.classList.remove('bg-blue-500', 'text-white');
-            btn.classList.add('bg-gray-200', 'text-black');
-        });
-
+        await renderQuestions(currentPage); // No sort param
     } else {
         currentSort = criteria;
+        await renderQuestions(currentPage, currentSort); // With sort param
+    }
 
-        const sorted = [...lastSortedQuestions]; // clone original
+    // Update sort button UI
+    document.querySelectorAll('.sort-button').forEach(btn => {
+        btn.classList.remove('bg-blue-500', 'text-white');
+        btn.classList.add('bg-gray-200', 'text-black');
+    });
 
-        if (criteria === 'newest') {
-            sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        }
-
-        renderQuestionsList(sorted);
-
-        document.querySelectorAll('.sort-button').forEach(btn => {
-            btn.classList.remove('bg-blue-500', 'text-white');
-            btn.classList.add('bg-gray-200', 'text-black');
-        });
-
-        const activeBtn = document.getElementById(`${criteria}Btn`);
-        if (activeBtn) {
-            activeBtn.classList.add('bg-blue-500', 'text-white');
-            activeBtn.classList.remove('bg-gray-200', 'text-black');
-        }
+    const activeBtn = document.getElementById(`${criteria}Btn`);
+    if (!isSameSort && activeBtn) {
+        activeBtn.classList.add('bg-blue-500', 'text-white');
+        activeBtn.classList.remove('bg-gray-200', 'text-black');
     }
 }
 
 
-// Show Screens with Login Restriction
+// =================== SCREEN MANAGEMENT ===================
 async function showScreen(screen) {
     if (!isLoggedIn && (screen === 'ask' || screen === 'question')) {
         toggleLogin();
@@ -152,7 +331,7 @@ async function showScreen(screen) {
     }
 }
 
-// Show Question Details with ID and Title in Answer Header
+// =================== QUESTION DETAILS ===================
 async function showQuestion(id) {
     if (!isLoggedIn) {
         toggleLogin();
@@ -186,7 +365,7 @@ async function showQuestion(id) {
                 Asked by <span class="font-medium text-gray-800">${data.author}</span>
                 on <span class="italic">${formattedTime}</span>
             </div>
-            <div class="text-gray-800 mb-4">${data.description}</div>
+            <div class="text-gray-800 mb-4 rendered-content">${data.description}</div>
             <div class="flex flex-wrap gap-2 mb-4">
                 ${data.tags.map(tag => `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">${tag}</span>`).join('')}
             </div>
@@ -227,70 +406,38 @@ async function showQuestion(id) {
     }
 }
 
-
-// Ask Question Submission
-document.getElementById("askQuestionForm").addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const title = document.getElementById("questionTitle").value.trim();
-    const description = document.getElementById("richTextEditor").innerHTML.trim();
-
-    if (!title || !description || selectedTags.length === 0) {
-        alert("Please fill all fields and select at least one tag.");
+// =================== TAG SELECTION ===================
+function toggleTagSelection(tag) {
+    if (selectedTags.includes(tag)) return;
+    if (selectedTags.length >= 5) {
+        alert("You can select up to 5 tags only.");
         return;
     }
-
-    const questionData = {
-        title,
-        description,
-        tags: selectedTags,
-        author: currentUser
-    };
-
-    try {
-        const res = await fetch("http://localhost:5000/ask-question", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(questionData)
-        });
-
-        const result = await res.json();
-        if (res.ok) {
-            alert("Question posted successfully!");
-            showScreen("home");
-        } else {
-            alert(result.error || "Failed to post question.");
-        }
-    } catch (err) {
-        console.error("Post question error:", err);
-        alert("Something went wrong.");
-    }
-});
-
-// Authentication & UI Update Functions (unchanged)
-function toggleLogin() {
-    document.getElementById('loginModal').classList.toggle('hidden');
-}
-function closeLoginModal() {
-    document.getElementById('loginModal').classList.add('hidden');
-}
-function toggleSignup() {
-    document.getElementById("loginModal").classList.add("hidden");
-    document.getElementById("signupModal").classList.remove("hidden");
-}
-function closeSignupModal() {
-    document.getElementById("signupModal").classList.add("hidden");
-}
-function updateLoginStatusUI() {
-    const loginBtn = document.getElementById('loginBtn');
-    if (isLoggedIn) {
-        loginBtn.textContent = `Hi, ${currentUser}`;
-        loginBtn.disabled = true;
-        loginBtn.classList.add('cursor-default');
-    }
+    selectedTags.push(tag);
+    updateSelectedTagsUI();
 }
 
-// Rich Text Editor Functions (unchanged)
+function updateSelectedTagsUI() {
+    const selectedContainer = document.getElementById("selectedTags");
+    selectedContainer.innerHTML = "";
+    selectedTags.forEach(tag => {
+        const span = document.createElement("span");
+        span.className = "bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs";
+        span.textContent = tag;
+        selectedContainer.appendChild(span);
+    });
+}
+
+function suggestTagsFromDescription(text) {
+    const lowerText = text.toLowerCase();
+    selectedTags = [];
+    availableTags.forEach(tag => {
+        if (lowerText.includes(tag)) selectedTags.push(tag);
+    });
+    updateSelectedTagsUI();
+}
+
+// =================== RICH TEXT EDITOR ===================
 function formatText(command) { document.execCommand(command, false, null); }
 function insertLink() {
     const url = prompt("Enter the URL");
@@ -324,52 +471,7 @@ function insertImage(input) {
     }
 }
 
-// Tag Selection + Suggestion
-function renderAvailableTags() {
-    const tagContainer = document.getElementById("tagSelection");
-    tagContainer.innerHTML = "";
-    availableTags.forEach(tag => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "tag-button px-2 py-1 bg-gray-100 rounded text-sm hover:bg-blue-200";
-        btn.textContent = tag;
-        btn.onclick = () => toggleTagSelection(tag);
-        tagContainer.appendChild(btn);
-    });
-}
-function toggleTagSelection(tag) {
-    if (selectedTags.includes(tag)) return;
-    if (selectedTags.length >= 5) {
-        alert("You can select up to 5 tags only.");
-        return;
-    }
-    selectedTags.push(tag);
-    updateSelectedTagsUI();
-}
-function updateSelectedTagsUI() {
-    const selectedContainer = document.getElementById("selectedTags");
-    selectedContainer.innerHTML = "";
-    selectedTags.forEach(tag => {
-        const span = document.createElement("span");
-        span.className = "bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs";
-        span.textContent = tag;
-        selectedContainer.appendChild(span);
-    });
-}
-function suggestTagsFromDescription(text) {
-    const lowerText = text.toLowerCase();
-    selectedTags = [];
-    availableTags.forEach(tag => {
-        if (lowerText.includes(tag)) selectedTags.push(tag);
-    });
-    updateSelectedTagsUI();
-}
-document.getElementById("richTextEditor").addEventListener("input", () => {
-    const desc = document.getElementById("richTextEditor").innerText;
-    suggestTagsFromDescription(desc);
-});
-
-// Answer Editor Toolbar
+// =================== ANSWER EDITOR ===================
 function formatAnswerText(command) {
     document.getElementById('answerEditor').focus();
     document.execCommand(command, false, null);
@@ -392,11 +494,165 @@ function insertAnswerEmoji(emoji) {
     toggleAnswerEmojiPicker();
 }
 
+// =================== MENTION DETECTION ===================
+function enableMentionDetection(editorId) {
+    const editor = document.getElementById(editorId);
+    const mentionBox = document.getElementById("mentionBox");
+
+    editor.addEventListener("keyup", (e) => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+
+        const textBeforeCursor = selection.anchorNode?.textContent?.slice(0, selection.anchorOffset) || "";
+
+        const match = textBeforeCursor.match(/@(\w*)$/);
+        if (match) {
+            const query = match[1].toLowerCase();
+            const matches = allUsernames.filter(name => name.toLowerCase().startsWith(query)).slice(0, 5);
+
+            if (matches.length > 0) {
+                mentionBox.innerHTML = matches.map(u =>
+                    `<div class="px-3 py-1 hover:bg-blue-100 cursor-pointer" onclick="insertMention('${u}', '${editorId}')">@${u}</div>`
+                ).join("");
+                const rect = editor.getBoundingClientRect();
+                mentionBox.style.top = (rect.top + window.scrollY + 30) + "px";
+                mentionBox.style.left = (rect.left + 20) + "px";
+                mentionBox.classList.remove("hidden");
+                return;
+            }
+        }
+
+        mentionBox.classList.add("hidden");
+    });
+}
+
+function insertMention(username, editorId) {
+    const editor = document.getElementById(editorId);
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const textNode = range.startContainer;
+
+    // Replace "@query" with "@username"
+    const content = textNode.textContent;
+    const cursorPos = range.startOffset;
+    const beforeCursor = content.slice(0, cursorPos);
+    const match = beforeCursor.match(/@(\w*)$/);
+    if (match) {
+        const newText = beforeCursor.replace(/@(\w*)$/, `@${username} `);
+        textNode.textContent = newText + content.slice(cursorPos);
+        range.setStart(textNode, newText.length);
+        range.setEnd(textNode, newText.length);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    document.getElementById("mentionBox").classList.add("hidden");
+}
+
+// =================== VOTING & ACCEPTING ANSWERS ===================
+function voteAnswer(index, type) {
+    const questionId = currentQuestionId;
+
+    if (!currentUser) {
+        alert("You must be logged in to vote.");
+        return;
+    }
+
+    fetch(`http://localhost:5000/question/${questionId}/answer/${index}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, username: currentUser }) // ✅ pass username
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.message) {
+            // Refresh the question screen to reflect updated vote counts
+            showQuestion(questionId);
+        } else {
+            alert("Vote failed: " + data.error);
+        }
+    })
+    .catch(err => console.error("Vote error", err));
+}
+
+function acceptAnswer(index) {
+    if (!currentUser || currentUser !== window.questionAuthor) {
+        alert("Only the question author can accept an answer.");
+        return;
+    }
+
+    fetch(`http://localhost:5000/question/${currentQuestionId}/answer/${index}/accept`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username: currentUser })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.message) {
+            alert(data.message);
+            window.hasAcceptedAnswer = true; // ✅ update global state
+            showQuestion(currentQuestionId); // ✅ refresh question view
+        } else {
+            alert("Failed: " + data.error);
+        }
+    })
+    .catch(err => {
+        console.error("Accept error:", err);
+        alert("Something went wrong.");
+    });
+}
+
+// =================== NOTIFICATIONS ===================
+async function toggleNotifications() {
+    const dropdown = document.getElementById("notificationDropdown");
+    dropdown.classList.toggle("hidden");
+
+    if (!dropdown.classList.contains("hidden")) {
+        await fetchNotifications(); // Load notifications when opened
+    }
+}
+
+// =================== UI & AUTH ===================
+function toggleLogin() {
+    document.getElementById('loginModal').classList.toggle('hidden');
+}
+function closeLoginModal() {
+    document.getElementById('loginModal').classList.add('hidden');
+}
+function toggleSignup() {
+    document.getElementById("loginModal").classList.add("hidden");
+    document.getElementById("signupModal").classList.remove("hidden");
+}
+function closeSignupModal() {
+    document.getElementById("signupModal").classList.add("hidden");
+}
+function updateLoginStatusUI() {
+    const loginBtn = document.getElementById('loginBtn');
+    if (isLoggedIn) {
+        loginBtn.textContent = `Hi, ${currentUser}`;
+        loginBtn.disabled = true;
+        loginBtn.classList.add('cursor-default');
+    }
+}
+
+// =================== EVENT HANDLERS ===================
+
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
     renderAvailableTags();
     fetchAllUsernames(); 
     showScreen('home');
+    enableMentionDetection("richTextEditor");
+    enableMentionDetection("answerEditor");
+});
+
+document.getElementById("richTextEditor").addEventListener("input", () => {
+    const desc = document.getElementById("richTextEditor").innerText;
+    suggestTagsFromDescription(desc);
 });
 
 document.getElementById('loginForm').addEventListener('submit', async function (e) {
@@ -471,6 +727,43 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
     }
 });
 
+document.getElementById("askQuestionForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const title = document.getElementById("questionTitle").value.trim();
+    const description = document.getElementById("richTextEditor").innerHTML.trim();
+
+    if (!title || !description || selectedTags.length === 0) {
+        alert("Please fill all fields and select at least one tag.");
+        return;
+    }
+
+    const questionData = {
+        title,
+        description,
+        tags: selectedTags,
+        author: currentUser
+    };
+
+    try {
+        const res = await fetch("http://localhost:5000/ask-question", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(questionData)
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+            alert("Question posted successfully!");
+            showScreen("home");
+        } else {
+            alert(result.error || "Failed to post question.");
+        }
+    } catch (err) {
+        console.error("Post question error:", err);
+        alert("Something went wrong.");
+    }
+});
 
 document.getElementById("answerForm").addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -510,6 +803,9 @@ document.getElementById("answerForm").addEventListener("submit", async function 
     }
 });
 
+
+
+// =================== UI BUTTONS ===================
 function handleAskClick() {
     if (!isLoggedIn) {
         toggleLogin(); // prompt login if not logged in
@@ -517,234 +813,3 @@ function handleAskClick() {
     }
     showScreen('ask');
 }
-function voteAnswer(index, type) {
-    const questionId = currentQuestionId;
-
-    if (!currentUser) {
-        alert("You must be logged in to vote.");
-        return;
-    }
-
-    fetch(`http://localhost:5000/question/${questionId}/answer/${index}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, username: currentUser }) // ✅ pass username
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.message) {
-            // Refresh the question screen to reflect updated vote counts
-            showQuestion(questionId);
-        } else {
-            alert("Vote failed: " + data.error);
-        }
-    })
-    .catch(err => console.error("Vote error", err));
-}
-
-
-function renderAnswers(answers) {
-    const answersList = document.getElementById('answersList');
-    answersList.innerHTML = '';
-
-    answers.forEach((answer, index) => {
-        const answerCard = document.createElement('div');
-        answerCard.className = "p-4 bg-gray-50 rounded-lg border border-gray-200";
-
-        const timestamp = new Date(answer.timestamp).toLocaleString("en-IN");
-
-        const isAccepted = answer.accepted;
-        const acceptedBadge = isAccepted
-            ? `<div class="text-green-700 font-semibold mt-2">✅ Accepted Answer</div>`
-            : '';
-
-        let acceptButtonHTML = '';
-
-        if (currentUser === window.questionAuthor) {
-            if (!isAccepted && !window.hasAcceptedAnswer) {
-                acceptButtonHTML = `
-                    <button 
-                        onclick="acceptAnswer(${index})" 
-                        id="accept-btn-${index}" 
-                        class="text-green-600 text-sm hover:underline">
-                        ✅ Accept Answer
-                    </button>`;
-            } else if (!isAccepted && window.hasAcceptedAnswer) {
-                acceptButtonHTML = `
-                    <button 
-                        disabled 
-                        class="text-gray-400 text-sm cursor-not-allowed">
-                        ✅ Accept Answer
-                    </button>
-                    <div class="text-xs text-red-500 italic">Only one answer can be accepted per question.</div>`;
-            }
-        }
-
-        answerCard.innerHTML = `
-            <div class="text-gray-800 mb-2">${answer.content}</div>
-            <div class="text-sm text-gray-500 mb-2">
-                Answered by <strong>${answer.author}</strong> on ${timestamp}
-            </div>
-            <div class="flex items-center space-x-4 text-gray-600">
-                <button onclick="voteAnswer(${index}, 'up')" class="flex items-center space-x-1 hover:text-green-600">
-                    <i class="fas fa-thumbs-up"></i>
-                    <span id="upvotes-${index}">${answer.upvotes || 0}</span>
-                </button>
-                <button onclick="voteAnswer(${index}, 'down')" class="flex items-center space-x-1 hover:text-red-600">
-                    <i class="fas fa-thumbs-down"></i>
-                    <span id="downvotes-${index}">${answer.downvotes || 0}</span>
-                </button>
-                ${acceptButtonHTML}
-            </div>
-            ${acceptedBadge}
-        `;
-
-        answersList.appendChild(answerCard);
-    });
-}
-
-function acceptAnswer(index) {
-    if (!currentUser || currentUser !== window.questionAuthor) {
-        alert("Only the question author can accept an answer.");
-        return;
-    }
-
-    fetch(`http://localhost:5000/question/${currentQuestionId}/answer/${index}/accept`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ username: currentUser })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.message) {
-            alert(data.message);
-            window.hasAcceptedAnswer = true; // ✅ update global state
-            showQuestion(currentQuestionId); // ✅ refresh question view
-        } else {
-            alert("Failed: " + data.error);
-        }
-    })
-    .catch(err => {
-        console.error("Accept error:", err);
-        alert("Something went wrong.");
-    });
-}
-
-
-async function toggleNotifications() {
-    const dropdown = document.getElementById("notificationDropdown");
-    dropdown.classList.toggle("hidden");
-
-    if (!dropdown.classList.contains("hidden")) {
-        await fetchNotifications(); // Load notifications when opened
-    }
-}
-
-async function fetchNotifications() {
-    if (!currentUser) return;
-
-    try {
-        const res = await fetch(`http://localhost:5000/notifications/${currentUser}`);
-        const notifications = await res.json();
-        renderNotificationList(notifications);
-        updateNotificationCount(notifications);
-    } catch (err) {
-        console.error("Failed to load notifications", err);
-    }
-}
-
-function renderNotificationList(notifications) {
-    const list = document.getElementById("notificationList");
-    list.innerHTML = "";
-
-    if (!notifications.length) {
-        list.innerHTML = `<div class="p-4 text-gray-500 text-sm">No new notifications.</div>`;
-        return;
-    }
-
-    notifications.forEach(n => {
-        const item = document.createElement("div");
-        item.className = "p-3 hover:bg-gray-100 cursor-pointer text-sm text-gray-800";
-        item.innerHTML = `
-            <div>${n.message}</div>
-            <div class="text-xs text-gray-500">${new Date(n.timestamp).toLocaleString()}</div>
-        `;
-        item.onclick = () => {
-            window.location.href = "#"; // you can redirect to question detail page if needed
-        };
-        list.appendChild(item);
-    });
-}
-
-function updateNotificationCount(notifications) {
-    const unread = notifications.filter(n => !n.read).length;
-    const badge = document.getElementById("notificationCount");
-
-    if (unread > 0) {
-        badge.textContent = unread;
-        badge.classList.remove("hidden");
-    } else {
-        badge.classList.add("hidden");
-    }
-}
-
-
-function enableMentionDetection(editorId) {
-    const editor = document.getElementById(editorId);
-    const mentionBox = document.getElementById("mentionBox");
-
-    editor.addEventListener("keyup", (e) => {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
-
-        const textBeforeCursor = selection.anchorNode?.textContent?.slice(0, selection.anchorOffset) || "";
-
-        const match = textBeforeCursor.match(/@(\w*)$/);
-        if (match) {
-            const query = match[1].toLowerCase();
-            const matches = allUsernames.filter(name => name.toLowerCase().startsWith(query)).slice(0, 5);
-
-            if (matches.length > 0) {
-                mentionBox.innerHTML = matches.map(u =>
-                    `<div class="px-3 py-1 hover:bg-blue-100 cursor-pointer" onclick="insertMention('${u}', '${editorId}')">@${u}</div>`
-                ).join("");
-                const rect = editor.getBoundingClientRect();
-                mentionBox.style.top = (rect.top + window.scrollY + 30) + "px";
-                mentionBox.style.left = (rect.left + 20) + "px";
-                mentionBox.classList.remove("hidden");
-                return;
-            }
-        }
-
-        mentionBox.classList.add("hidden");
-    });
-}
-
-function insertMention(username, editorId) {
-    const editor = document.getElementById(editorId);
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
-
-    const range = selection.getRangeAt(0);
-    const textNode = range.startContainer;
-
-    // Replace "@query" with "@username"
-    const content = textNode.textContent;
-    const cursorPos = range.startOffset;
-    const beforeCursor = content.slice(0, cursorPos);
-    const match = beforeCursor.match(/@(\w*)$/);
-    if (match) {
-        const newText = beforeCursor.replace(/@(\w*)$/, `@${username} `);
-        textNode.textContent = newText + content.slice(cursorPos);
-        range.setStart(textNode, newText.length);
-        range.setEnd(textNode, newText.length);
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-
-    document.getElementById("mentionBox").classList.add("hidden");
-}
-enableMentionDetection("richTextEditor");
-enableMentionDetection("answerEditor");

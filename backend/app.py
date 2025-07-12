@@ -264,6 +264,39 @@ def get_notifications(username):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/questions/page/<int:page>', methods=['GET'])
+def get_questions_paginated(page):
+    per_page = 5
+    skip = (page - 1) * per_page
+    total = questions_col.count_documents({})
+
+    sort_by = request.args.get('sort')
+    sort_condition = None
+    if sort_by == 'newest':
+        sort_condition = [("timestamp", -1)]
+    elif sort_by == 'upvotes':
+        sort_condition = [("upvotes", -1)]
+
+    if sort_condition:
+        cursor = questions_col.find().sort(sort_condition).skip(skip).limit(per_page)
+    else:
+        cursor = questions_col.find().skip(skip).limit(per_page)
+
+    questions = []
+    for q in cursor:
+        q["_id"] = str(q["_id"])
+        q["upvotes"] = q.get("upvotes", 0)
+        questions.append(q)
+
+    return jsonify({
+        "questions": questions,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page
+    }), 200
+
+
 if __name__ == "__main__":
     app.run(debug=True)
 
