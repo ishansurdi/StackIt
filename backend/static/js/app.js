@@ -100,7 +100,7 @@ function highlightMentions(text) {
 // =================== FETCH FUNCTIONS ===================
 async function fetchAllUsernames() {
     try {
-        const res = await fetch("http://localhost:5000/users");
+        const res = await fetch(`${API_BASE}/users`);
         const data = await res.json();
         if (Array.isArray(data)) {
             allUsernames = data;
@@ -112,7 +112,7 @@ async function fetchAllUsernames() {
 
 async function fetchQuestions() {
     try {
-        const res = await fetch("http://localhost:5000/questions");
+        const res = await fetch(`${API_BASE}/questions`);
         return await res.json();
     } catch (err) {
         console.error("Failed to fetch questions", err);
@@ -124,7 +124,7 @@ async function fetchNotifications() {
     if (!currentUser) return;
 
     try {
-        const res = await fetch(`http://localhost:5000/notifications/${currentUser}`);
+        const res = await fetch(`${API_BASE}/notifications/${currentUser}`);
         const notifications = await res.json();
         renderNotificationList(notifications);
         updateNotificationCount(notifications);
@@ -332,7 +332,7 @@ async function showQuestion(id) {
     showScreen('question');
 
     try {
-        const res = await fetch(`http://localhost:5000/question/${id}`);
+        const res = await fetch(`${API_BASE}/question/${id}`);
         if (!res.ok) throw new Error("Failed to fetch question");
         const data = await res.json();
 
@@ -550,7 +550,7 @@ function voteAnswer(index, type) {
         return;
     }
 
-    fetch(`http://localhost:5000/question/${questionId}/answer/${index}/vote`, {
+    fetch(`${API_BASE}/question/${questionId}/answer/${index}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, username: currentUser }) // ✅ pass username
@@ -573,7 +573,7 @@ function acceptAnswer(index) {
         return;
     }
 
-    fetch(`http://localhost:5000/question/${currentQuestionId}/answer/${index}/accept`, {
+    fetch(`${API_BASE}/question/${currentQuestionId}/answer/${index}/accept`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -656,7 +656,7 @@ document.getElementById('loginForm').addEventListener('submit', async function (
     }
 
     try {
-        const res = await fetch("http://localhost:5000/login", {
+        const res = await fetch(`${API_BASE}/login`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -695,7 +695,7 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
     }
 
     try {
-        const res = await fetch("http://localhost:5000/signup", {
+        const res = await fetch(`${API_BASE}/signup`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -741,7 +741,7 @@ if (containsBadWords(title) || containsBadWords(description)) {
     };
 
     try {
-        const res = await fetch("http://localhost:5000/ask-question", {
+        const res = await fetch(`${API_BASE}/ask-question`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(questionData)
@@ -781,7 +781,7 @@ if (containsBadWords(content)) {
     };
 
     try {
-        const res = await fetch(`http://localhost:5000/question/${currentQuestionId}/answer`, {
+        const res = await fetch(`${API_BASE}/question/${currentQuestionId}/answer`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -813,7 +813,7 @@ async function handleSearch(page = 1) {
     }
 
     try {
-        const res = await fetch(`http://localhost:5000/questions/search?q=${encodeURIComponent(query)}&page=${page}`);
+        const res = await fetch(`${API_BASE}/questions/search?q=${encodeURIComponent(query)}&page=${page}`);
         const data = await res.json();
         lastSortedQuestions = [...data.questions]; // update state
 
@@ -846,7 +846,7 @@ document.getElementById("searchInput").addEventListener("keydown", (e) => {
 async function filterQuestions(type, page = 1) {
     if (type === 'unanswered') {
         try {
-            const res = await fetch(`http://localhost:5000/questions/unanswered?page=${page}`);
+            const res = await fetch(`${API_BASE}/questions/unanswered?page=${page}`);
             const data = await res.json();
             lastSortedQuestions = [...data.questions]; // Update state
 
