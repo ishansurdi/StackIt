@@ -10,6 +10,9 @@ from bson.regex import Regex
 from flask import abort
 from flask import render_template
 from flask import send_from_directory
+from flask import Flask
+
+app = Flask(__name__)
 
 load_dotenv()
 db_password = os.getenv("DB_PASSWORD")
@@ -51,6 +54,11 @@ def contains_offensive_content(text):
 
     lower_text = text.lower()
     return any(word in lower_text for word in offensive_words)
+
+@app.route('/')
+def home():
+    return "Hello from Flask on Render!"
+
 
 @app.route("/signup", methods=["POST"])
 def signup():
