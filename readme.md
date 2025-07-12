@@ -265,7 +265,7 @@ python app.py
 
 <!-- [![StackIt Demo]](https://youtu.be/FIN2hGQZobY) -->
 
-> _Click the image or [watch on YouTube](https://youtu.be/FIN2hGQZobY) for a full walkthrough and demo of StackIt!_
+> _Click here:  [watch on YouTube](https://youtu.be/FIN2hGQZobY) for a full walkthrough and demo of StackIt!_
 
 ---
 
