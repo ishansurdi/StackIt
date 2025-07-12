@@ -59,7 +59,7 @@
                 <!-- Logo -->
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 shadow">
-                        <img src="images/layers.png" alt="StackIt Logo" class="w-8 h-8 object-contain" />
+                        <img src="{{ url_for('static', filename='images/layers.png') }}" alt="StackIt Logo" class="w-8 h-8 object-contain" />
                     </span>
                     <h1 class="text-3xl font-extrabold text-blue-700 tracking-tight cursor-pointer select-none" onclick="showScreen('home')">
                         StackIt
